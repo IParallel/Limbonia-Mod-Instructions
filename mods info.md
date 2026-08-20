@@ -1,3 +1,101 @@
+# THE FOLDER
+- what a mod is on disk, and where each kind of file goes.
+
+A mod is one folder under the game's `Mods` folder, and its name is the mod's name everywhere. Inside it, one file is
+required and everything else is filing:
+
+```
+Mods/
+  YourMod/
+    mod.json          the only required file - everything below is named by it
+    cover.png         the picture on this mod's card in the companion. Optional
+    scripts/          the .lua your `script` key names
+    art/              portraits, character art, skill cards, cut-in pictures
+    icons/            the small square pictures for status effects
+    audio/            sounds a beat plays, and anything your `audio` list names
+    voices/           voice recordings
+    motions/          the .bundle Unity built, and its .manifest
+```
+
+**Nothing here is enforced, and nothing here is magic except `audio`.** Every path in mod.json is read relative to
+the mod's own folder, so `"icon": "pictures/mine/bleed.png"` works exactly as well as `"icon": "icons/bleed.png"`, and
+a file sitting beside mod.json with the manifest naming it plainly works too. These are the folders the app puts
+files in when you import one, and the folders the Unity build writes into -- so a mod built by the toolkit and a mod
+assembled by hand end up looking the same.
+
+**`audio` is the exception, and it is worth knowing.** Every `.wav` and `.ogg` sitting DIRECTLY in that folder is
+registered as a sound your mod owns, named `<your mod>/<the file name without its ending>`, whether you declared it
+in `audio[]` or not. That name is the only way a beat on a motion can ask for a sound -- a cue's `clip` is a name and
+never a path -- so a sound in `audio/hit.wav` can be played by a beat and the same file in the mod's root cannot.
+Files in folders INSIDE `audio` are not picked up; it is one level only.
+
+**Recordings are kept out of `audio` on purpose.** A mod with thirty voice lines would otherwise add thirty names to
+every sound list in the app, none of which a beat has any use for. Put them in `voices` -- `voices[].file` is an
+ordinary path and reads from anywhere inside the mod.
+
+**A path may never leave the mod's folder.** `cover` and `script` say so outright: a full path off your own disk, a
+drive letter, a leading slash or a `..` is refused by name and reported, because a mod is a folder somebody hands to
+somebody else and a path to your own machine arrives pointing at nothing.
+
+**Three things in a mod folder are not part of the mod.** `.limbonia/`, `.vscode/` and `.luarc.json` are written by
+**Set up `<your mod>` for VS Code**, under *Write it in VS Code instead* on the Scripts screen. They describe the
+build of the game you have right now, and the game never opens any of them. Delete the lot and the mod works exactly
+as before. **Share this mod…** leaves them out. If you have edited `.luarc.json` yourself, pressing the button again
+keeps your version and only adds to it.
+
+**All three sit at the TOP of the mod folder, and that is why VS Code is opened on the mod folder** rather than on
+the `scripts` folder your script is probably in. An editor looks for those settings at the root of whatever it was
+opened on and nowhere else, so a window opened on `scripts` -- or on the script by itself -- finds none of them and
+quietly offers you nothing, with no message to say why. Open the mod folder with **File → Open Folder**, then reach
+your script from the sidebar. They cannot be moved down to meet the expectation either: a mod may equally keep its
+script beside mod.json, and a settings file inside `scripts` would do nothing at all for that one.
+
+**Moving a file does not move the name that points at it.** Every path in mod.json is written by hand or by the app,
+and neither follows a file you drag into a folder afterwards -- so the commonest way a finished mod stops working is
+that the file is perfectly safe one level down while the manifest goes on naming where it used to be. Both places
+that report a name pointing at nothing now look for the file before saying it is gone: the **Behaviour script**
+field offers to point the mod file at it in one press, and **Share this mod…** says where each missing file turned
+out to be. Nothing is rewritten unless you press something, nothing on disk is moved, and the match is the file name
+and nothing cleverer -- a file you RENAMED is not found, because guessing which one you meant is worse than saying
+nothing.
+
+# SHARING
+- **Share this mod…**, at the bottom of the Overview tab on the Mod Author screen.
+
+Pick where to save it and you get one zip holding everything the mod needs and nothing else. Whoever you send it to
+drops it into their own `Limbus Company/Mods/` folder as it is -- the archive opens as a folder with your mod's name
+on it, so nothing is scattered over what they already have installed.
+
+**It packs what your mod ASKS FOR, not what happens to be in the folder.** mod.json goes in, then every file it
+names -- your script, your pictures, your sounds, your recordings, your bundle, your cover -- and then the two things
+the game reads without being told: every `.wav` and `.ogg` sitting directly in `audio/` (see THE FOLDER), and the
+`.manifest` sitting beside a bundle if Unity wrote one. That is the whole rule, and it is that way round on purpose:
+a list of things to LEAVE OUT would ship whatever nobody thought of, on the day somebody invents a new kind of
+clutter, silently. It also means a file is packed because something in mod.json NAMES it, not because it sits under
+a folder this document happens to list -- filing is a convenience, and the packager reads the manifest.
+
+**What it leaves behind, and it tells you which is which:**
+
+| Left out | Why |
+|----------|-----|
+| `.limbonia/`, `.vscode/`, `.luarc.json` | the editor pack. Written for the game build on YOUR machine, read by nothing
+| `mod.json.<date>-<time>.bak` | the dated copies taken whenever your mod file is rewritten. Your undo, not their mod
+| `Thumbs.db`, `desktop.ini`, `.DS_Store`, `.git/` and the like | your computer's own leftovers
+| a zip already sitting in the folder | a previous export, not part of this one
+| anything else nothing points at | **read this one.** Either it is no longer needed, or a name in mod.json is spelled differently from the name on disk
+
+**A file mod.json names that is not there stops the first press and asks.** That is the one fault worth interrupting
+for, because it is invisible from the other end: the mod loads, reports nothing to the person who downloaded it, and
+the part that needed the file simply does not happen. You are shown each one -- the value, and where in the file to
+find it -- and you can go and fix them, or press **Share it anyway** if you meant it. Nothing is written until you
+answer, and the archive is never half-made: it is built beside the file you chose and only becomes it once whole.
+
+**A path to somewhere on your own computer is reported the same way** and never travels. It is the mistake that works
+perfectly on the machine it was written on and on no other, which is exactly why the packager is where you find out.
+
+**One place you cannot save it is inside the mod it is packaging**, and that is refused with the reason rather than
+producing an archive that contains most of itself. Anywhere else is fine.
+
 # UNIT
 - int - top level
 ```json
@@ -5,6 +103,7 @@
 ```
 
 # NAMES
+- names[] - top level. One entry per thing renamed: who it is about, then the wording.
 
 ```json
 "names": [
@@ -22,6 +121,41 @@
 	{"keyword": "LIMBUS_COMPANY_LCB", "traitKeyword": "Meme"}
   ]
 ```
+| Field  |  Type  |  Notes  |
+|--------|--------|---------|
+| personalityId | int  | WHICH identity. Aliases appearance, unitId. Omit to use the one at the top of the file
+| characterId   | int  | WHICH sinner (1-12). Only for `characterName`
+| enemyId       | int  | WHICH enemy
+| keyword       | text | WHICH trait keyword, in the game's own capitals - `LIMBUS_COMPANY`. Only for `traitKeyword`
+| name          | text | the identity's own name, or the enemy's
+| title         | text | the identity's title, and the SECOND half of the big line on the battle name tag
+| oneLineTitle  | text | the FIRST half of that same line
+| desc          | text | the identity's description, or the enemy's
+| acquisitionMethod | text | how the identity is obtained, on its information screen
+| skinItemTitle | text | the name of this identity's outfit item
+| skinItemDesc  | text | the description of that item
+| characterName | text | the SINNER's name. See below
+| traitKeyword  | text | one of the small tags in the Trait Keywords panel. See below
+| traitKeywordTitle | text | the "Trait Keywords" heading over those tags. There is one for the whole game
+
+Every text field is a plain string (every language) or `{ "EN": "...", "KR": "...", "JP": "..." }`, and a named
+language always beats the plain form -- the same rule as SKILLS.
+
+**The big name in battle is not `name`.** The large line over a character in a fight is `oneLineTitle` followed by
+`title`; `name` is not part of it. Set only `name` and the most visible name in the game does not change, with
+everything else looking correct. The smaller line under it is the sinner's name, `characterName`.
+
+**`characterName` renames that sinner EVERYWHERE.** On every identity they have, and in story dialogue, mirror
+dungeon logs, the store and battle results. Use it when you mean to rename the person rather than one of their
+identities.
+
+**A trait keyword belongs to everyone who carries it.** `traitKeyword` renames one shared piece of text, so it
+changes for EVERY character with that trait and not only the one your entry is about. It reads like a local change
+because the entry sits under a character in the file, and it is not one.
+
+An id or a keyword the game has no entry for changes nothing and breaks nothing. Whether the game knows an id can
+only be answered once its text tables have loaded, so it is not a scan-time fault: the Mod Author screen lists them
+under "The game has no entry for these" once the game is running.
 
 # SKILLS
 - skills[] - top level. One entry per skill: the wording and the picture live together.
@@ -35,7 +169,7 @@
 ```
 | Field  |  Type  |  Notes  |
 |--------|--------|---------|
-| skill    | int    | WHICH skill, counting from 1 — the same "Skill 1 / 2 / 3" the game shows. Needs a character: `appearance` here or once at the top. Aliases skillSlot, slot
+| skill    | int    | WHICH skill, counting from 1 — the same "Skill 1 / 2 / 3" the game shows. `"skill": 0` is refused and reported. Needs a character: `appearance` here or once at the top. Aliases skillSlot, slot
 | skillId  | int    | that one skill outright. Needs no character, and works before the game has loaded
 | textId   | int    | the shared wording row outright. For when you already know you want the shared one
 | name     | text   | the skill's name — battle skill card, the skill list on the information screen, every tooltip that names it
@@ -91,7 +225,7 @@ Several skills sometimes share one wording row. Renaming it renames all of them 
 |cg            | path   | 1920x1080 - flat illustration (the Spine overlay is suppressed for you)
 |portrait      | path   | 493x434 - enemy/NPC bust
 |icon          | path   | square - the sinner logo. Changes it on every identity of that sinner, plus name tags, passive slots, battle results, store
-|buff          | int/string | a STATUS EFFECT, not a character. A number is the effect's id, a word is its name. Aliases buffName, statusEffect, buffId, buffID
+|buff          | int/string | a STATUS EFFECT, not a character. A number is the effect's id; a word is the GAME's own key, not the name on screen - Bleed is `Laceration`, Tremor `Vibration`, Rupture `Burst`. See BUFFS. Aliases buffName, statusEffect, buffId, buffID
 |buffIcon      | path   | the icon in the status bar and its tooltip
 |buffTypoIcon  | path   | the small symbol beside a floating damage number. Falls back to buffIcon if you leave it out
 |skill         | int    | a SKILL icon, counting from 1. skillId addresses one outright. Uses the `icon` key
@@ -107,12 +241,12 @@ an effect belongs to the game rather than to your character. Everything else in 
   {"situation": "battle_kill", "files": ["voice/k1.ogg","voice/k2.ogg"] },
   {"situation": "battle_select", "variant": 2, "file": "voice/sel2.ogg" },
   {"situation": "*", "mute": true },
-  {"voiceId": "battle_select_hysteric_10312_1", "file": "voice/hyst.ogg" }
+  {"voiceId": "battle_select_hysteric_10312_1", "file": "voice/hyst.ogg" },
   {
     "situation": "battle_kill",
-    "text": "Let's go.", // bubble text
+    "text": "Let's go.",
     "file": "sounds/entry.ogg",
-    "bubbleSeconds": 2.5, // life of the bubble
+    "bubbleSeconds": 2.5
   }
 ]
 ```
@@ -120,11 +254,13 @@ an effect belongs to the game rather than to your character. Everything else in 
 |--------|--------|---------|
 | personalityId | int          | aliases appearance, unitId
 | voiceId       | string       | the full id, e.g. battle_kill_10916_1 - highest precedence, ignores every other selector
-| situation     | string       | alias cue. "*" or omitted = any
+| situation     | string       | "*" or omitted = any
 | variant       | int          | the trailing number. Battle cues always use 1 
 | file / files  | path / array | files picks one, avoiding an immediate repeat 
 | mute          | bool         | silence. The only way to get it - a custom character with no recordings should be silent, not speak in its stand-in's voice 
 | volume        | number       | clamped to 4.0 max
+| text          | text         | a speech bubble over the character when this cue fires. A plain string, or `{ "EN": "...", "KR": "...", "JP": "..." }` like every other text field
+| bubbleSeconds | number       | how long that bubble stays up, 0 to 60. Left out, it follows the length of the sound
 
 ***
 
@@ -142,6 +278,20 @@ an effect belongs to the game rather than to your character. Everything else in 
 | battle_defeat      |   when battle ends and you lose|
 | battleentry        | when entering a battle after a formation confirm |
 |   any or *         | match every situation       |
+
+**That table is not a limit.** The hook sits inside the game's own sound lookup, so ANY situation the game asks for
+works -- a cue added by a game update can be written straight into `situation` without waiting for a new Limbonia.
+The list is what this build has been seen to use, nothing more, and a name it does not recognise is passed through
+rather than refused.
+
+**A situation nobody records is a FREE SLOT, not a broken option.** The game asks for the cue whatever character is
+standing there, so the fact that almost no vanilla character has a recording for one is a reason to take it, not a
+reason to avoid it. Read the coverage the other way round from the way it looks.
+
+**To find out what a line you just heard is called, turn on voice logging.** The switch is beside the voice list on
+the Mod Author screen; it writes every cue the game asks for to `Limbonia.log`, marked `[VoiceLog]` -- every
+character's, not only yours. `ok=0` on a line is the game saying it has no recording for that cue at all. Turn it
+off again when you are done: it writes a line per voice.
 
 # audio[] - top level, and cues[] - per motion asset
 ```json
@@ -164,6 +314,71 @@ an effect belongs to the game rather than to your character. Everything else in 
 **Nothing sniffs the file's contents.** The extension alone decides how the reference is read; whether the bytes
 actually play is FMOD's call later, at load time. So a renamed mp3 passes the scan and then fails with "FMOD could
 not decode it" when it is first asked for. Use a plain PCM `.wav` or a real `.ogg`.
+
+**Sound needs no Unity.** A `.wav` or `.ogg` sitting in the mod folder, named in `audio[]`, is a complete mod on its
+own: no bundle, no Unity project, no version to match. That is true of everything outside `motions` -- `names`,
+`art`, `voices`, `buffs`, `targetGroup` and `script` all work from files and text alone.
+
+**Mod sound comes out on its own track.** Every sound a mod plays -- a cue on an animation, a replaced character
+voice line, a status effect's sound, a preview -- goes to one track that belongs to mods and nothing else. The
+game's own **voice**, **effects** and **music** sliders do not touch it. A player who turns character voices down
+does not turn your mod down with them.
+
+The one control over it is **Mod sound volume**. It sets the level of every installed mod's sound at once and is
+remembered between sessions. The game's **overall** volume still applies on top, and muting the game mutes mod
+sound with it -- a mod that kept playing after the player silenced the game would be a bug.
+
+**It is in two places, and it is one level.** There is a slider on the Mods screen, and there is a **Limbonia
+Sounds** row in the game's own audio options, under Master / BGM / Effects / Voice, with the same slider and the
+same mute button as the four above it. They are two views of one number and cannot disagree. Moving the one in
+the app reaches the game at once; moving the one in the game reaches the app when you press **Confirm** or leave
+that screen, which is the moment the game saves its own rows too. The row runs full travel from silent to twice as
+loud, so "as you intended" is the middle of it, and the slider on the Mods screen has the same range.
+
+On the game's screen it also behaves like the rows beside it: you hear the change as you drag, **Confirm** keeps
+it and **Cancel** puts it back. Nothing of ours goes into the game's own settings file -- that file has no room
+for it -- so the player's real audio settings cannot be disturbed by this, and the level is saved with the rest of
+Limbonia's.
+
+If a game update ever reshapes that screen, the row simply is not there; the Mods screen slider is unaffected and
+so is every sound.
+
+**Three levels multiply, in this order:**
+
+| Level | Set by | Where |
+|-------|--------|-------|
+| the sound's own | you | a cue's `volume`, or failing that the clip's `volume` in `audio[]`. 1.0 = the recording as it is |
+| mod sound volume | the player | the Mods screen, or **Limbonia Sounds** in the game's audio options. 1.0 = as you intended, up to 2.0 |
+| the game's overall volume | the player | the game's own options. Muting the game is zero |
+
+So `"volume": 1.5` on a cue means "half again as loud as this recording *within the mod track*", not "louder than
+the game". Mix your sounds against each other with the per-sound numbers and leave the rest to the player -- if
+every one of your sounds needs the same boost, the recordings are quiet and `audio[]`'s own `volume` is the place
+to fix it once.
+
+**Telling a level problem from a loading problem, because a level problem is silent.** A sound whose FILE is wrong
+is named on the mod's card when the mod is read: a path pointing at nothing, an extension that is not `.wav` or
+`.ogg`, an empty file. A sound whose file is there and whose BYTES will not play is a different fault, found only
+when something first asks for it -- so it appears on the card DURING a fight rather than when the mod loads, and it
+says which sound and what is wrong with it. That holds wherever the sound was declared: a cue on an animation, a
+beat on the character's own animation, a voice line, a status effect's own sound. A sound that loaded and then
+played at nothing says *nothing at all, anywhere*: it is a working sound at zero volume, which is indistinguishable
+from a working sound. So when you hear nothing:
+
+1. Preview the sound in the editor (**Hear it**). It plays through the same track at the same levels, so hearing
+   it there clears the file AND every level at once -- what is left is the cue not firing.
+2. If the preview is silent too, it is a level. **Mod sound volume** on the Mods screen, then the game's overall
+   volume, then whether the game is muted.
+3. Then the numbers you wrote. A `volume` of `0` is silence and is honoured exactly as written, on the cue and in
+   `audio[]` alike.
+4. Only then the file. Read the mod's card -- every load failure is named there, by sound, whether it was found
+   when the mod was read or when the fight first asked for it. If the card says nothing, the file is fine and the
+   silence is coming from somewhere in 1-3.
+
+**A sound plays to the end of the FILE, not to the end of the move.** A long sample is still going after the attack
+that started it, which is not a fault and is the commonest thing reported as one. Leaving the fight stops every one
+of them at once. To cut one short, give the cue a `stop` -- the **Stops at** box in the animation editor -- and
+optionally a `fade`. Both are refused on a hit-anchored cue; see above.
 
 | Field     |  Type  |  Notes  |
 |-----------|--------|---------|
@@ -204,7 +419,6 @@ because a pose never lands damage; that is reported too.
   "voices":  [],
   "audio":   [],
   "motions": [],
-  "overlay": [],
   "sidecar": [],
   "buffs":   [],
   "script":  "behaviour.lua"
@@ -214,13 +428,15 @@ because a pose never lands damage; that is reported too.
 |--------|--------|---------|
 | enabled | bool  | false switches the WHOLE folder off - art, names, voices, sounds, animations, everything. A real yes/no, not "false" in quotes
 | appearance | int or text | who this mod is about, said ONCE. Aliases personalityId, unitId, characterId, id - consulted in that order, the first one carrying a number wins
-| renderer | text | how your animations are drawn. See SIDECAR
+| renderer | text | how your animations are drawn. See below
+| sidecar | [] | the older way to write a `motions` entry. See below
 | script | text | the name of a .lua file in this folder. See SCRIPT
+| cover  | path | a picture for this mod's card in the companion. The GAME never reads it. See below
 
-**Say who once.** Every section that addresses a character -- `names`, `voices`, `art`, `motions`, `sidecar`, `buffs`,
-`script` -- falls back to the top-level declaration when its own entry names nobody. An entry that DOES name somebody
+**Say who once.** Every section that addresses a character -- `names`, `voices`, `art`, `skills`, `motions`,
+`sidecar`, `buffs`, `script` -- falls back to the top-level declaration when its own entry names nobody. An entry that DOES name somebody
 always wins, so a mod about one character can still make one section an exception. This is the same fact written once
-instead of five times, and forgetting one of the five is the failure it exists to remove.
+instead of once per section, and forgetting one section is the failure it exists to remove.
 
 Written as a bare number (`10101`), it matches every appearance of that identity -- the base one and each of its
 skins -- which is what a whole-character mod wants. Written as a full appearance name
@@ -229,16 +445,61 @@ and reported: a sinner has many identities and a number that low cannot say whic
 left with no character to fall back on. A string that does not start with digits is ignored rather than misread, so
 `"id": "my-mod-guid"` is safe to keep for your own bookkeeping.
 
+**Every number this document asks you for is printed in the app, beside the name, in every build.** Identity and
+appearance numbers, skill numbers, status-effect numbers and their real keys, item numbers -- they are in the
+pickers and the lists, so nothing here has to be guessed or hunted for elsewhere. That holds for the copy you hand
+somebody else exactly as much as for the one you build with: a manifest addresses the game by these numbers, so
+they are never hidden.
+
 **One wrong value never kills the game.** Every section is read defensively and reports rather than throws: a number
 where text was expected, a quoted `"false"` where a yes/no was expected, a time that is not a time -- each of them is
 skipped, the rest of the file still loads, and the sentence appears on the mod's card in the Mods panel. If mod.json
 will not parse at all (a missing comma, bracket or quote) the whole folder is skipped and told so. Read that card
 first: almost everything in this document that can go wrong says so there, in words, before you ever start a fight.
 
-**Keys nothing reads.** `bundleId` is an 8-character hex id the Unity build writes at the top of the file so the
-bundle it produces keeps the same internal name across rebuilds -- leave it alone, and do not write one by hand. A
-top-level `name` is written when the panel creates a mod for you, and is read by nothing: the mod's name is its
-FOLDER name, everywhere. There is no `author`, `version` or `description` key.
+**`renderer` has one value and you do not have to write it.** Your animations are drawn alongside the character's
+own by a second renderer, which is what `"renderer": "sidecar"` names -- and it is the default, so a `motions` entry
+that says nothing gets it. It is the only value the key takes, and any other word is refused by name when the mod
+loads rather than acted on: a typo must never move a character onto a way of drawing you did not ask for. The key
+may sit at the top of the file or inside a single `motions` entry, and the inner one wins.
+
+**`sidecar[]` is the older spelling of `motions[]` and you should not write a new one.** It takes the same settings
+with `clips` in place of `assets`, and `coin` in place of `index`. A `motions` entry is read by every section of this
+document; a `sidecar` entry is read only by the part that draws, so it covers the picture -- `timing`, `loop`/`onEnd`,
+`sync`, `form` and `becomes` -- and nothing else. `cues`, `speech`, `vfx`, `camera`, `move`, `picture` and the
+authored beat set are simply not looked for there. Write `motions`: a `motions` entry is drawn by the same renderer,
+so nothing about the picture changes.
+
+**`bundleId` is written FOR you, and the game does not read it.** It is an 8-character hex id the Unity build puts
+there so the bundle it produces keeps the same internal name across rebuilds -- leave it alone, and never write one
+by hand. It is not reported as a mistake and it does nothing if you add one yourself. The mod's own name is its
+FOLDER name, everywhere -- there is no `author`, `version` or `description` key either.
+
+**`characters` names the OTHER characters a mod is about.** Who a mod is about is `appearance`, here and on each
+section, and that is the one the game reads; a mod made in the app is given one the moment you pick a character.
+`characters` is a plain list of further appearance ids beside it, for a mod that covers more than one character and
+ships no animation for the extras -- the Animation Timing screen opens an editing target for each name in it, so
+camera work, sounds and movement can be layered on a character you supply no artwork for. Nothing in the game reads
+it, so it is never reported as a mistake and it changes nothing on its own.
+
+**`cover` changes nothing in the GAME and something in the app.** It names a picture inside the mod's own folder -- `cover.png`, or
+`art/cover.png` -- and it is drawn on the mod's card in the companion, cropped to fit. It must be a MOD-RELATIVE
+path: a full path off your own machine is refused by name and reported, because a mod is a folder somebody hands to
+somebody else. Left out, the card draws a picture from the mod's name instead, so nothing looks broken. Written as
+`""` it means a deliberate no-picture; deleting the key does not, because a top-level key missing from a save is
+carried back in from the file on disk.
+
+**Saving mod.json is not the same as the game re-reading it.** The writer re-reads the animation side only, so a
+save that changed pictures, wording, skills, voice lines, sounds or status effects is on disk and not yet in force.
+The Mod Author screen asks for the whole-folder re-read itself and says whether it landed; **Reload mods** on the
+Installed screen is the same re-read asked for outright, and is what to press after a Unity build or any edit made
+outside the app. It picks up a rebuilt bundle without restarting the game, and it can refuse -- a modded animation
+mid-play is not a safe moment to let go of an archive -- in which case it says so and you press it again.
+
+**Switching a mod off does not stop all of it at the same instant.** Its art, voices and sounds are fetched when the
+game asks for them, so those stop at once (re-open the screen you are looking at to clear what is already drawn).
+Its animations have already been written into a character that may be on screen, and taking those back out from
+under a running battle is not safe, so they clear at the NEXT battle.
 
 # MOTIONS
 - motions[] - top level. One entry per character: one appearance, one bundle, and everything in it.
@@ -247,7 +508,7 @@ FOLDER name, everywhere. There is no `author`, `version` or `description` key.
 "motions": [
   {
     "appearance": "10101_YiSang_BaseAppearance",
-    "bundle": "bundles/yisang.bundle",
+    "bundle": "motions/yisang.bundle",
     "coverage": "wholeCharacter",
     "fallback": "Idle",
     "assets": [
@@ -263,20 +524,27 @@ FOLDER name, everywhere. There is no `author`, `version` or `description` key.
 | Field  |  Type  |  Notes  |
 |--------|--------|---------|
 | appearance | text | which character. Omit to use the one at the top of the file
-| bundle     | path | required, relative to the mod folder. The .bundle Unity built
-| assets     | []   | required. Everything you want out of that bundle - see ASSETS
+| bundle     | path | required unless the only things the entry carries are `gameEffects` and `targetGroup`. Relative to the mod folder; the .bundle Unity built
+| assets     | []   | required with a bundle. Everything you want out of that bundle - see ASSETS
 | coverage   | text | "wholeCharacter" (the default here) or "perMotion". See below
 | fallback   | text | which of your motions to play for one you did not supply. Defaults to Idle, then Default
 | alwaysOn   | []   | effects that sit on the character for the whole battle - see ALWAYSON
+| gameEffects| []   | the GAME's own effects, played by name. Needs no bundle at all - see GAMEEFFECTS
 | targetGroup| []   | where the units you are hitting stand - see TARGETGROUP
 | renderer   | text | overrides the top-level one for this character only
 | parent     | text | scalePivot (default) / appearance / animPivot / renderer - what your drawing hangs off
 | spritePath | text | where the sprites load from. Defaults to "auto", the character's own
 | sortingOffset | int | added to the character's drawing order, -1000..1000. 0 = exactly where the original drew
-| sync       | text | auto (default) / game / own - whose clock your animation runs on. game and master mean the same, as do own and free
+| sync       | text | auto (default) / game / own - whose clock your animation runs on
 | hide       | {}   | main / parts / spine / effects - which of the character's own renderers to switch off. main defaults on, the rest off
 | disableSpine | bool | ask the game not to draw its Spine skeleton at all. Default true
 | disableTrail | bool | the same for its motion trail. Default true
+
+**A bundle has to be built with Unity 6000.3.12f1, and the game will not accept one from any other version.** That
+one version is the whole requirement -- there is nothing separate to match, because the render pipeline ships
+inside that editor. The Limbonia Mod Template (`LimboniaModTemplate.zip`, beside this document) is already set up
+against it, so an effect or a shader authored in there draws the same way in the game as it does in the editor.
+Nothing else in a mod needs Unity at all; see `audio[]`.
 
 **A bundle's contents cannot be listed, so everything must be declared.** Nothing can enumerate what is inside a
 Unity bundle at runtime -- the only thing that can be loaded out of it is a name somebody wrote down. That is why
@@ -328,6 +596,9 @@ inside the `assets` entry it was meant for. This is reported by name.
 | speech | [] | speech bubbles on this coin - see SPEECH
 | vfx    | [] | effects on this coin - see VFX
 | picture| [] | swap the drawing partway through the coin - see PICTURE
+| form   | text | which set of drawings this animation belongs to. Left out = the character as you normally draw it. See FORMS
+| becomes| [] | turn the character into another of its forms partway through the coin - see FORMS
+| cutIns | [] | the full-screen splash, with your own picture, at a moment on this coin - see CUTIN
 | camera | {} | shake / zoom / rotate - see CAMERA
 | move   | [] or {} | the character stepping about - see MOVE
 | sync   | text | auto / game / own, for this one animation
@@ -351,6 +622,66 @@ entirely on any coin that declares `totalDuration`, both of which are reported.
 **Anything with no `motion` is loaded but never played by the fight.** That is correct for a prefab, a texture or a
 material. It is also how you declare an animation that only a PICTURE change reaches -- though a `TimelineAsset` with
 no `motion` is reported as unused, so expect that sentence on the card.
+
+## Supplying an animation switches off the character's own camera work and movement for that coin
+
+Give a coin an animation of yours and the character's own **presentation** for that coin stops happening. There is
+nothing to write and nothing to switch on: supplying the animation is the switch. What stops:
+
+- its camera shakes
+- its steps and lunges towards the enemy
+- the moments it turns to face a different way
+- the moments it is told to keep following its target as the target moves
+- its effect-speed ramps -- the slow-motion and speed-up written into the original
+- the moments it hides and shows the battle HUD
+- the cues that animate its own attached decorations, the pieces of its art that move separately from the body
+
+Those were authored to dress the drawing the character normally makes, and you have replaced that drawing. Left in,
+they are why a modded character walks to a spot your animation never goes to, and why the camera shakes on a frame
+with nothing hitting in it. Use CAMERA and MOVE to put back whatever you want, where your animation wants it.
+
+**What never stops, on any coin.** The hit, the stagger, the hand-over to the next coin and the end of the action all
+fire exactly as the game schedules them, and so does anything else that is part of the fight rather than part of the
+show. **Clash and duel presentation is on that side of the line too** -- the lock, the trade of blows and the way the
+game stages a clash are not treated as dressing and are never stood aside, so a replaced character still clashes
+looking like the game intended. That is not a setting -- there is no way to switch a hand-over off, and a fight that
+never hands over is a fight you have to close the game to leave. Move them with `timing`, or author your own set with
+`totalDuration`; those are the two doors, and both of them always produce a hand-over.
+
+Anything the game grows later lands on this side by default: only the specific things listed above as dressing are
+ever stood aside, so a beat added by a game update goes on playing rather than silently disappearing under a mod.
+
+**Two things it cannot reach, and you WILL notice them.** The original animation's **built-in sounds** and the
+**camera zooms and turns written into it** are not beats -- they are part of the animation itself, played by the
+same machinery that draws it -- so nothing can stand them aside and they keep playing under your animation. Do not
+confuse that camera turn with the character's own turn-to-face, which is a beat and DOES stand aside. For the
+sounds, add your own with `cues` and treat the original's as a floor you cannot remove. For the camera, a
+`camera.zoom` or `camera.rotate` of your own takes over from whatever the camera was doing, which is as close to
+cancelling one as this gets.
+
+**It follows your animation, not your declaration.** The rule applies while your animation is actually on screen for
+that coin. A coin you did not supply keeps the character's own everything. A coin whose animation failed to load
+keeps it too -- the character draws itself, so its own camera work is the right thing to play. And a `fallback`
+standing in for a motion you never drew is not you supplying an animation for that motion, so the character's own
+presentation plays there as usual.
+
+**A coin of yours that declares no beats of its own will be quiet, and that is correct.** Supply the animation and
+write no CAMERA, no MOVE and no `cues`, and the coin plays your drawing with no camera shake, no step towards the
+enemy and no sounds of your own -- only the hit, the hand-over, the end, and whatever sounds and zoom the original
+animation carries in itself. Nothing is inherited from the animation you replaced, because "keep the original's
+shake but with my drawing" is a judgement about YOUR animation that only you can make: the original's shake is at
+the original's impact frame, and yours is somewhere else. **If a replaced coin looks flat, that is what happened.**
+Start with CAMERA `shake` at your impact frame and a MOVE step into the enemy; those two are most of what the
+character's own animation was doing for you. The Animation Timing editor shows the character's own beats on their
+own lanes, and on a coin your mod draws it strikes through the ones that will not play -- so you can still read the
+time and the settings the game used and take them. Select one and **Copy it into my mod** puts an identical beat of
+your own at the same moment, which you can then move. The game's beat is never edited: it is there to be read and
+copied, and supplying the animation is what stands it aside.
+
+**On a coin with `totalDuration`, none of this arises, and none of YOUR beats are touched.** That coin's beats are
+built entirely from what you wrote and the original animation is not played at all, so there is nothing of the
+character's to stand aside. Your own movement phases, your own hits and your own hand-over run exactly as written --
+the rule above is about the character's beats, and on that coin the character has none.
 
 # GAMEPLAY BEATS
 - inside one assets entry. `totalDuration` is the switch; without it none of this is read.
@@ -484,13 +815,12 @@ real one.
 | time   | number | required. A bare number in the list is the time and nothing else
 | mode   | text | "toTarget" (default), "relative" or "toTargetWide"
 | duration | number | 0.01..10s. Default 0.2
-| arriveRadius | number | how far short of the target to stop, in character-widths. Default 0. The game's own clips sit near 1.2
+| arriveRadius | number | how far short of the target to stop, in character-widths. Default 0. The game's own clips sit near 1.2, and nothing holds you to that -- but past the gap between the two, the stop lands BEHIND where you started and the character walks backwards
 | includeTargetRadius | bool | add the target's body radius to that distance. Default OFF - on, your one number stops being the answer
 | includeAttackerRadius | bool | the same for your own body. Default OFF
 | chaseY | bool | follow the target's height as well
 | refreshDir | bool | let the game turn the character. Default true
 | facing | text | "auto" (default), "keep", "left" or "right"
-| fixedDirection | bool | the older spelling of `facing: "keep"`. Kept working; prefer `facing`
 | x, y, z | number | a fixed offset. RELATIVE and TOTARGETWIDE only - see below
 | overrideTarget | int | which unit to aim at, -1..15. -1 is the middle of all of them
 | yWorldZero | bool | measure height from the ground rather than from the character
@@ -606,6 +936,179 @@ explains. Use -1 or 1. This is why the default is -1 and not 0.
 Sixteen always-on effects on one character is allowed and warned about; every one of them is a copy of a prefab
 running for the whole battle.
 
+# GAMEEFFECTS
+- gameEffects[] - inside a motions entry, beside alwaysOn. One of the GAME's own effects, played by name.
+
+```json
+"gameEffects": [
+  "BUFF_BLEEDING",
+  { "label": "EFFECT_BURN", "playsWhen": "hit", "seconds": 0.8, "scale": 1.4, "layer": "skin" },
+  { "label": "EFFECT_FIRE", "playsWhen": "time", "motion": "S2", "coin": 0, "time": 0.35, "seconds": 1.2 }
+]
+```
+| Field  |  Type  |  Notes  |
+|--------|--------|---------|
+| label  | text | required. The game's own name for the effect. Exact - it is a dictionary lookup. A bare string in the list is this and nothing else
+| playsWhen | text | "always" (default) - there for the whole fight. "hit" - when this character's damage lands. "time" - at a moment on one of this character's animations
+| motion | text | "time" only, and required there. Which animation the moment is on - S1, S2, S3, Guard, Idle...
+| coin   | int  | "time" only. WHICH COIN of that motion, from 0. -1, the default, means every coin of it
+| time   | number | "time" only. Seconds from the start of that coin, the same clock a sound cue uses. Past 60 is read as a typo, moved back and reported
+| hitRepeat | text | "hit" only. "impact" (default) once per hit, "beat" once per damage beat
+| seconds | number | "hit" and "time". How long it stays up: above 0, capped at 30. Default 1. NOTHING ELSE EVER ENDS IT
+| scale  | number | a multiplier on the size the game would give it. Above 0, capped at 100. Default 1
+| centred | bool | at the character's middle instead of at their feet. Default false. Alias centered
+| layer  | text | "default" (the character's effect pivot), "back" (its back pivot) or "skin" (drawn and masked with the character's own art)
+| enabled | bool | false leaves it in the file and switches it off
+
+**This is the only way to put an effect on a character without shipping one.** You are not supplying art: you are
+naming an effect the game already has, and the game makes it, parents it to your character, positions it, sizes it
+and draws it. So a `motions` entry carrying nothing but `appearance` and `gameEffects` is a complete, working mod
+with no Unity project, no `.bundle` and nothing on disk but mod.json. (It is not the only bundleless part of a mod
+-- `targetGroup` and everything outside `motions` need no bundle either. It is the only one that draws a particle
+effect.)
+
+**You cannot guess a name, and you are not expected to.** The Animation Timing editor has a picker fed from the
+game's own catalogue - it works at the title screen and in the lobby, because the list the game searches first is
+static data. It opens on the whole list and scrolls, so it can be read through as well as searched, and
+**See what the game has** beside it fetches that list from the game and says how many there are. Beside the picker
+is a **Try it** button, which plays the effect on a character standing in a battle right now and saves nothing. The
+Mods panel lists what a mod already declares, as chips beside its always-on effects, but does not edit them.
+
+**Why this is not a `vfx` entry with a third source.** A `vfx` entry lives inside an `assets` declaration, so it
+needs a `TimelineAsset` in a bundle before you may even name an effect - which is exactly the dependency this
+removes. And every knob a `vfx` entry has belongs to machinery this does not use: `duration`, `once`,
+`hide` and `activeTime` describe a clip on an animation of yours; `x`, `y`, `z`, `disableAfter`, `sortingOffset`,
+`playsOn` and `targetIndex` describe a prefab of yours that Limbonia drives. Here the game owns everything. Writing
+any of those keys on a `gameEffects` entry is REPORTED and ignored rather than silently accepted. A `time` is the
+one thing both lists want, and it is not on that list -- but here it is written with the animation and coin beside
+it, because this entry does not sit on a coin's declaration the way a `vfx` entry does. That is the next part.
+
+**A moment on a coin, and it still needs nothing of yours.** `"playsWhen": "time"` switches the effect on `time`
+seconds into coin `coin` of `motion`, on the character's own playback clock -- the same clock a sound cue, a speech
+bubble and a camera shake are placed against. It works on a coin you supplied NO animation for: the game says
+which motion and coin every character is playing whether or not a mod is involved. So "the game's own fire burst
+0.35 seconds into this character's S2" is a complete mod with nothing on disk but mod.json.
+
+**A timed entry has to name a moment that exists, and a bad one is dropped rather than turned into an always-on.**
+No `motion`, a `motion` that is not one of this character's animations, or a `time` that is not a number of
+seconds: each is refused by name and the entry does not play. That is deliberate -- quietly falling back to "for
+the whole fight" would leave you watching an effect that never goes off, with nothing anywhere saying why. Leave
+`coin` out to put it on every coin of that motion.
+
+**An address on an entry that does not play at a moment does nothing, and you are told.** `motion`, `coin` and
+`time` on an `"always"` or `"hit"` entry are read only so they can be reported: it is exactly what somebody writes
+when they meant `"playsWhen": "time"` and forgot to say so, and it is the difference between one sentence and an
+afternoon.
+
+**One name is one effect per character, at one moment.** The game keeps a single copy of each label on each
+character. Naming the same label twice in the SAME place is two switches fighting over one object, so the second
+is dropped and you are told. Naming it at DIFFERENT moments is fine and is the ordinary thing to write across a
+multi-coin skill -- asking again for an effect that is already standing re-triggers it, which is what a second
+placement means.
+
+**What ends it, and why `seconds` is not on the animation's clock.** A `"hit"` or `"time"` effect is switched off
+`seconds` after the moment that started it - and if Limbonia did not do that, nothing would, because the game's
+own switch is a plain on/off with no timer. That countdown runs on a real clock rather than on the animation's,
+deliberately: a coin that is interrupted, a character that dies mid-swing, a wave that ends, and the animation's
+clock simply stops where it is -- so an "off" scheduled at a moment on that clock is an off that never arrives,
+and the effect burns for the rest of the fight. The cost is that a paused or loading fight keeps counting, which
+at the length a burst lives at nobody can see. An `"always"` effect ends with the fight instead: it hangs off the
+character, so it goes when the character does. A coin ending does nothing to any of them. Deleting the entry, or
+switching the mod off, takes the effect off the character on the next save rather than at the next battle.
+
+**A character that has died refuses new effects.** That is the game's own rule and Limbonia keeps it, so an effect
+asked for after the character is down simply does not appear - and it is not reported as a fault.
+
+**Telling a wrong name from an effect you cannot see.** If the name resolves nowhere the game makes nothing at
+all, and this mod's card says *the game has no effect called "..."*. If the card says nothing, the name is right
+and the effect drew nothing where it was put - try `"layer": "skin"` or a larger `scale`.
+
+# CUTIN
+- cutIns[] - inside one assets entry. The full-screen splash, with your own picture, at a moment you choose on
+  one coin.
+
+```json
+"cutIns": [
+  { "time":    0.35,
+    "image":   "art/awaken.png",
+    "style":   "awaken",
+    "facing":  "right",
+    "color":   [3.0, 0.6, 0.2],
+    "seconds": 2.0,
+    "once":    true }
+]
+```
+| Field  |  Type  |  Notes  |
+|--------|--------|---------|
+| time   | number | required in practice. Seconds from the start of this coin, the same clock a sound cue uses. Default 0
+| image  | path   | required. A PNG in your mod's folder. There is nothing else to put on screen, so without one the cut-in is dropped and you are told
+| style  | text   | "awaken" (default), "erosion", "unstable", "stable", "upgrade". Decides where the picture slides in from and how far it is zoomed
+| facing | text   | "right" (default) or "left". The same picture, flipped
+| color  | []     | the tint, as [red, green, blue]. NOT 0-to-1 - see below. A fourth number is alpha
+| seconds| number | how long before it comes off the screen, 0.3..10. Default 2. NOTHING ELSE EVER ENDS IT
+| once   | bool   | true (default) = once per BATTLE. false = every time this coin plays. See below
+| enabled| bool   | false leaves it in the file and switches it off
+
+**It is a beat, and it goes where you put it.** `cutIns` sits beside `cues`, `speech`, `camera` and `move` on an
+`assets` entry - one coin of one skill - and it comes due on the character's own playback clock, which is the
+animation you are watching.
+
+**The picture needs no Unity, but the coin does.** The splash, the slide, the blur behind it and the tint are all
+the game's, and the only thing you supply is one PNG read straight off disk. What you cannot do is put one on a
+coin you supply no animation for: a beat lives on an `assets` entry, and an `assets` entry needs the bundle its
+animation comes out of.
+
+**`once` means once per BATTLE.** A beat already fires at most once per play of the coin it sits on - that is true
+of every beat here - so that is not what the word is for. What it answers is the next question out: does the splash
+happen again the next time this character uses this skill? On (the default), once a fight. Off, every time that
+coin plays. Two cut-ins on two different coins are two separate promises; one does not use up the other's.
+
+**Only one splash at a time.** The game has a single cut-in canvas, so a cut-in raised while another is still up
+takes the first one down rather than queueing behind it. Putting two on one coin a tenth of a second apart is one
+slide restarting, not two cut-ins.
+
+**The colour is not 0-to-1.** The game's own cut-ins write values as high as **5** into this property - it is an
+emissive tint, not a paint colour - so `[1, 1, 1]` is a fairly dim white and `[3, 0.6, 0.2]` is a bright orange.
+Anybody who has set a colour anywhere else gets this wrong first time. The list has to be exactly three numbers or
+exactly four; any other length is dropped whole and the splash draws untinted. Each number is capped at 16, which is
+well past anything the game itself writes.
+
+**What `style` actually changes.** Two things, both visible. It picks which of the game's own cut-in settings are
+read, which is where the picture slides in from, where it settles and how far it is zoomed. And `unstable` and
+`stable` additionally play the game's overclock overlay on top of the splash; `erosion` uses the same geometry
+without it. If the game has no settings for the style you asked for, the mod's card says so and no splash goes up.
+
+**`style` and `facing` are matched letter for letter, and a word that is not one of the listed ones is taken as the
+default in silence.** `"Awaken"` is not `"awaken"`, and anything that is not exactly `"left"` means right. These two
+are the only keys here with no sentence on the mod's card when they are wrong, so check the spelling before you go
+looking for a reason the splash came in from the wrong side.
+
+**What takes it down.** Limbonia, and only Limbonia. The game's own flow closes a cut-in explicitly from a place a
+mod never reaches, so nothing would ever close yours - a splash left up is indistinguishable from a broken game.
+`seconds` is therefore clamped rather than trusted: below 0.3 it is a flicker (the slide-in alone takes a full
+second) and above 10 a mistake looks exactly like the game having frozen, so a number outside that range is pulled
+to whichever end it is nearer, and something that is not a number at all becomes the default 2. It also comes down
+when the battle ends, when the mods are reloaded, whenever any beat is edited or deleted and saved, and when a
+second cut-in goes up.
+
+**Authoring it.** The Animation Timing editor has a **Cut-in** lane, under Form and above the camera lanes.
+Double-click the lane to place one, drag the bar to move it and drag its right-hand edge to set `seconds` - the bar
+is the splash, so its width is how long it is up. The inspector card underneath carries the picture, the style, the
+facing, the tint and `once`.
+
+**Trying it.** That card has a **Show it now** button, which raises the splash over whatever battle is running, and
+a **Take it off** beside it. It shows the beat **on screen**, not
+the one you last saved, so only the PNG has to be on disk already. If the splash appeared but showed nothing, the
+picture is transparent or is not the file you meant; if nothing appeared at all, there was no battle to put it
+over; and if this mod's card says the picture could not be read, it is not a PNG or not where the path says.
+
+**Telling "it never fired" from "the picture did not load".** These are the two failures that look identical from
+the outside, so they are reported differently. A picture that could not be read is named on this mod's card, by
+file, before the fight ever starts - the splash goes up and shows nothing, or does not go up at all, and the card
+says which. A beat that never came due says nothing anywhere, because nothing went wrong: check that the time is
+before the coin actually ends (the editor greys a beat that sits past it), and that the coin you put it on is one
+the skill really throws.
+
 # SPEECH
 - speech[] - inside one assets entry. What the character SAYS on this coin.
 
@@ -672,6 +1175,91 @@ the runtime to act on.
 The animation a change names must be declared in `assets` like any other. Two changes at the same instant means only
 the last one written can happen, and you are told which. Sixty-four changes on one coin is the ceiling.
 
+# FORMS
+- a `form` name on an assets entry, and a becomes[] list inside one. A second set of your own drawings that the
+  character turns into mid-fight and stays.
+
+```json
+"assets": [
+  { "name": "Doro_Idle", "motion": "Idle" },
+  { "name": "Doro_S1",   "motion": "S1", "index": 0,
+    "becomes": [ { "time": 6.0, "form": "transformation1" } ] },
+
+  { "name": "Doro_T1_Idle", "motion": "Idle", "form": "transformation1" },
+  { "name": "Doro_T1_S1",   "motion": "S1", "index": 0, "form": "transformation1" }
+]
+```
+| Field  |  Type  |  Notes  |
+|--------|--------|---------|
+| form   | text | ON AN ASSETS ENTRY: which set of drawings it belongs to. Left out = the base form, the character as you normally draw it
+| becomes| []   | ON AN ASSETS ENTRY: the moments this coin changes the character's form
+| becomes[].time | number | required, seconds from the start of the attack, 0..3600
+| becomes[].form | text | which form to become. An EMPTY name (or none at all) means "back to normal", which is how you change back
+| becomes[].enabled | bool | false switches this one change off
+
+**A form is made by TAGGING, not by declaring.** There is no list of forms anywhere. Draw the second version of
+your character, add its animations as ordinary `assets` entries, and give each of them the same `"form"` name -- every
+animation carrying that name IS that form. Nothing else creates one, which is why a `becomes` naming a form nothing is
+tagged with is reported and ignored: it could never draw anything, and the sentence lists the forms that do exist. A
+mod with no tagged animation at all gets a different sentence saying so, rather than one refusal per change. Only an
+animation makes a form: a `form` on a prefab, a texture or anything else that is not a `TimelineAsset` creates
+nothing. And `form` has to be text -- a number or a list there drops that whole animation declaration, not just the
+tag.
+
+**A form is DRAWINGS AND NOTHING ELSE.** Same bundle, same `spritePath`, same `parent`, same `sortingOffset`, same
+`hide` settings, same character entry -- one `motions` entry per character, always. The hits, the sounds, the camera
+work, the movement and the timing belong to the COIN, and are taken from the untagged animation the form's one stands
+in for. A tagged entry that also carries `totalDuration`, `timing`, `phases`, `hitCheckers`, `endCheck`, `cues`,
+`speech`, `vfx`, `camera`, `move`, `hideDefaultImpact` or `showDamageCounter` is reported by name and those keys are
+ignored. It is not a restriction for tidiness: a form entry is a SECOND declaration for a motion and coin you already
+declare, so two of anything on that list would fire twice or overwrite each other, and which won would come down to
+the order of the lines in your file.
+
+**What a tagged entry CAN still carry** is everything that is about the picture: `picture`, `loop`, `sync` and its own
+`becomes`. `cutIns` is the one exception with no sentence attached -- a cut-in on a form entry is dropped in silence,
+so put it on the untagged animation for that coin.
+
+**The form's animation is picked up at the same instant of the attack, not from its own start.** A change at 6
+seconds shows the transformed animation 6 seconds in. It is the same coin with the same hit at the same moment, drawn
+differently, so the two have to stay in step -- starting it over would rewind the attack under a hit that has already
+been scheduled. Author the transformation itself into the END of the untagged animation and let the form's one carry
+on from there. If what you want really is a second animation played from ITS beginning at a moment, that is a PICTURE
+change, and the two work together on the same coin.
+
+**What a form does not cover falls back to your ordinary animation, and that is the design.** Limbonia looks for the
+current form's animation for a motion first and takes the base one when there is none -- so a form that redraws an idle
+and one skill is a complete, working form. A motion NEITHER covers still reaches the pack's `fallback` exactly as
+before. Each gap is reported once per character, naming the form and the motion, so you can see which ones you might
+want to draw -- and once more per body that character wears, so an E.G.O. or a boss phase can repeat the sentence.
+
+**IT LASTS FOR THE REST OF THE BATTLE, and survives things that look like they should end it.** The form is remembered
+against the CHARACTER, not against the body it is currently wearing -- so an E.G.O., a wave transition and a boss
+changing phase all rebuild the character and it comes back still transformed. It goes back to normal when the battle
+ends, or when you reload your mods.
+
+**Changing back is the same thing written the other way.** `{ "time": 20.0, "form": "" }` -- or the same entry with no
+`form` at all. "Transform at 6s, change back at 20s" is two entries in one `becomes` list, exactly as it is on a
+PICTURE change.
+
+**The same two clips cannot carry one that PICTURE cannot: a pose, and one that owns its own schedule.** A pose is
+played through the Animator and has no attack clock to hang a moment on; a clip carrying a `timing` block or
+`"sync": "own"` is the clip everything else on the attack is timed against, and swapping what is drawn underneath it
+would wind that clock back and replay the attack's sounds and camera work. Both are refused at scan time with the
+reason. Watch the second one at the top of the file too: `"sync": "own"` written next to `bundle` applies to every
+animation in the entry, so it refuses every `becomes` in the mod at once. A change written on an animation that is
+ITSELF part of the form it names is refused too -- the character is already that when it plays, so it could never do
+anything; put it on the animation that plays BEFORE the change.
+
+Times here are always seconds, on the same clock as `picture` and `cues`, even on a coin that declares
+`"times": "fraction"`. Two changes at the same instant means only the last one written can happen, and the time is
+reported. Sixteen form changes on one coin is the ceiling; past it they are counted as changes that could not be
+read rather than named individually.
+
+**A script can put a character into a form too**, with the same names your `assets` tags declare -- that is how
+"transform when this blow kills something" is written, which no time on a coin can say. A `becomes` beat that is
+currently in force wins: it is re-applied for as long as its coin is playing, so it overwrites a form a script set
+during that coin. See SCRIPT.
+
 # TARGETGROUP
 - targetGroup[] - inside a motions entry. Where the units you are hitting stand.
 
@@ -693,6 +1281,11 @@ Per SKILL, not per coin -- the arrangement happens once before the first coin pl
 `assets` rather than inside one. A lone object is read as one entry, so you do not need the list brackets for a single
 rule. A named entry beats an unnamed one outright rather than merging with it, and two entries for the same skill
 means the first wins and the rest are ignored -- reported, so you can see which.
+
+This needs no bundle either. It moves units the game already has, so a `motions` entry carrying nothing but
+`appearance` and `targetGroup` is complete on its own -- the same way one carrying only `gameEffects` is. Name
+`assets` or `alwaysOn` without a `bundle`, though, and the entry is refused and told why: both of those name things
+your mod SHIPS, and there is no archive to take them out of.
 
 **A negative is a real answer here, not an absence.** The game reads a negative distance or spacing as "use this
 character's own", so writing one deliberately is how you take a per-skill script's hard-coded number back to the
@@ -717,6 +1310,8 @@ arrangement had been taken over and it does nothing whatever.
     "canBeDespelled": true,
     "icon": "icons/emberdebt.png",
     "sound": "emberdebt",
+    "floatingTextSize": 1,
+    "floatingTextColor": "#ff7a3c",
     "name": "Ember Debt",
     "desc": "Take {0} damage at the start of this unit's turn.",
     "keywordDesc": "At the start of the turn, deals damage equal to the stack count.",
@@ -729,15 +1324,16 @@ arrangement had been taken over and it does nothing whatever.
 |--------|--------|---------|
 | buff   | text | required. The name the effect is known by, internally. Aliases buffKey, effect, statusEffect
 | new    | bool | true = ADD this effect to the game. See below - without this or basedOn, the entry is only a rename
-| basedOn| text | which existing effect to shape it from. Alias copyFrom. Also opts the entry in to being added
+| basedOn| text | which existing effect to shape it from. Also opts the entry in to being added. Left out on an effect that declares a stack or turn count, it is shaped from Bleed
 | type   | text | "positive" / "negative" / "neutral". Also good/bad/neutral, buff/debuff. Decides despel and which way a give-multiplier moves it
-| maxStack | int | how many stacks one character may hold. 0 or more. Omitted = keep the based-on effect's
-| maxTurn  | int | how many turns it may last. 0 or more. Omitted = keep the based-on effect's
+| maxStack | int | how many stacks one character may hold. 0 or more. Omitted = keep the based-on effect's. Above 0 also decides what the effect is shaped from when there is no basedOn
+| maxTurn  | int | how many turns it may last. 0 or more. Omitted = keep the based-on effect's. Only means something on an effect shaped from one that counts - see below
 | canBeDespelled | bool | whether a "remove one effect" catches it
 | icon   | path or text | a .png/.jpg your mod ships, OR the name of a picture the game already has. Explicit forms: iconFile, iconId
 | typoIcon | text | the little symbol beside the line that floats up. Omitted = the based-on effect's
 | sound  | path or text | heard when the effect lands. A file path, or a name from your `audio` list. Omitted = SILENT
-| floatingTextSize | number | 0.25..3. The game draws its own effects at 0.75 and Bleed at 1
+| floatingTextSize | number | how big the line that floats up is, as a multiplier. The game draws its own effects at 0.75, and Bleed and Burn at 1. No upper limit
+| floatingTextColor | text | the colour of that line - "#ff4444". Omitted = the colour the game chooses. Also floatingTextColour
 | name   | text | what it is called - on its icon popup, inside "[Bleed]" in skill text, and in the keyword glossary
 | desc   | text | what it is doing to THIS character, on the icon popup in battle. Keep "{0}" and "{1}" - the game fills the numbers in
 | summary | text | the short form beside the icon. Numbers filled in here too
@@ -761,10 +1357,36 @@ are renaming a vanilla effect.
 turn counters, the expiry, the despel rule, the row on the status bar, the tooltip and the icon, all of it real, and
 none of it MEANS anything until a script says what it does. See SCRIPT.
 
-**The two ceilings are enforced by different things, and one of them can be quietly beaten.** `maxStack` is handed to
-the game -- written into the effect's own row and clamped by the identical code that clamps Bleed, on every path.
-`maxTurn` cannot be: the game never reads that field at all, so Limbonia enforces the turn ceiling itself when the
-effect is applied. Both are still written down, so anything inspecting the effect reads what you declared.
+**WHAT AN EFFECT IS SHAPED FROM IS WHAT DECIDES WHETHER IT CAN COUNT, and it matters more than the numbers.** The
+game does not have one kind of status effect. Bleed and its relatives are the counting kind: they carry a stack, they
+carry a turn count beside it, they tick down and they wear off. Plenty of the game's other effects are not that at
+all -- they hold a stack and nothing else, they never count down, and nothing draws a number of turns beside them.
+Which one an effect is comes entirely from what it was shaped from, and no number you write can change it: an effect
+of the non-counting kind cannot be given a single turn, whatever `maxTurn` says, because the game never asks that
+question of it.
+
+**So an entry that declares a count and names no `basedOn` is shaped from Bleed for you, and you are told so.**
+Writing `"maxStack": 10` or `"maxTurn": 3` is you saying what kind of effect this is; taking that at its word is the
+only reading that can work. If you want a different one, name it: `basedOn` always wins. Two entries are deliberately
+left alone -- one that declares nothing at all, and one that says `"maxStack": 0`, which is you saying outright that
+the effect does not stack. Those are still shaped from the game's own list, and the first of them is advised to name
+a `basedOn`.
+
+**`"maxStack": 0` is read first and settles the question on its own, which is the one trap here.** Write it with a
+turn count beside it -- `{ "maxStack": 0, "maxTurn": 5 }` -- and the entry is still left alone, so the turns you
+asked for land on an effect that may have no idea what a turn is, with nothing said about it. If you want a count of
+any kind, either give `maxStack` a real number or name the `basedOn` yourself.
+
+**Changing `basedOn` on an effect that is already in the game takes a restart.** An effect is added to the game's
+list once and never removed while the game is running -- taking it away would leave whatever is carrying it pointing
+at nothing. The limits are re-read from your file as you edit it, but the SHAPE is fixed at the moment it was added.
+Rescanning after a change of `basedOn` therefore looks like nothing happened; restart and it is right.
+
+**The two ceilings are enforced by different things.** `maxStack` is handed to the game -- written into the effect's
+own row and clamped by the identical code that clamps Bleed, on every path, for every shape. `maxTurn` reaches the
+game only on the counting kind, so Limbonia truncates against it as well when the effect is applied; that way the
+number you wrote means the same thing either way. Both are always written down, so anything inspecting the effect
+reads what you declared.
 
 Then there is a third limit you did not write. Some effects carry a TEAM-WIDE total, and an effect shaped from one
 inherits it -- and the game checks that FIRST. Declare `"maxStack": 20` on something based on an effect whose whole
@@ -791,10 +1413,35 @@ for. Told apart by extension the same way: `"audio/emberdebt.wav"` is a file, `"
 list named -- and every .wav and .ogg under the mod's `audio` folder is registered whether you declared it or not.
 Naming it rather than writing the path survives the folder being renamed, and lets you set a `volume` once.
 
-**The colour of the line that floats up cannot be changed.** The game picks it from a hardcoded list of eleven of its
-own effects; everything else in the game, its own included, takes one flat colour at 0.75 size. `type` is not secretly
-it. `floatingTextSize` is the one part you can move -- raise it to 1 and a declared effect reads like one of the
-eleven. Left out, it looks exactly like the game's own, which is the point.
+**The line that floats up when the effect lands can be given a size and a colour, and both are optional.** The game
+draws that line for its own effects too, and it singles out eleven of them -- each gets a colour of its own at full
+size. Everything else in the game, all sixteen hundred or so, takes one flat colour at 0.75 size, and so does an
+effect you declare. That is why both keys are off by default: left out, your effect looks exactly like an ordinary
+one of the game's, which is usually what you want.
+
+`floatingTextSize` is a **multiplier**, not a point size. 0.75 is what the game uses for almost everything, 1 is what
+it gives Bleed and Burn. **There is no upper limit** -- ask for 5 and you get 5. The only sizes refused are ones that
+cannot mean anything, a zero or a negative, and you are told when that happens rather than left with a line that never
+changed.
+
+`floatingTextColor` is a colour written the way you would write one anywhere else: `"#ff4444"`. The short form
+`"#f44"` works, eight digits set how see-through it is -- `"#ff4444cc"` -- and the short form takes that fourth
+digit too, `"#f44c"`. The `#` is optional. There is no range on it. **A colour that cannot be read is refused out
+loud**, with the reason -- which character was wrong, or how many digits it found -- in the mod's problem list; it
+is never quietly ignored.
+
+`type` is **not** secretly the colour, and it never was. The game picks the colour from the effect's own identity, not
+from whether it is good or bad, so there is no positive-is-blue convention for a declared effect to inherit -- pick the
+colour you want. (`type` still decides whether a "remove one effect" catches it, and which way a give-multiplier moves
+it, so it is far from decorative.)
+
+Both apply wherever the game draws the line -- during a fight, at the start of one, when it is applied on spawn. You do
+not have to do anything for that to be true.
+
+On the **Mod Author** screen both sit under **The line that floats up when it lands**, on the status-effect page,
+beside the icon and the sound -- with a colour picker and a preview showing your line next to one the game's own size,
+so you can see what you are choosing before you play a round. (They used to be filed at the bottom of the collapsed
+"Wording, and the rest" panel, which is why nobody found them.)
 
 `syncOnBossRaid` is refused if you write it: an effect a mod adds is always kept out of the Boss Raid record.
 
@@ -803,46 +1450,95 @@ row, so taking it away mid-battle would crash. The effect stops MEANING anything
 expires on its own.
 
 # SCRIPT
-- script - top level. The name of a .lua file in this folder.
+- script - top level. A .lua file inside this mod's folder.
 
 ```json
 {
   "appearance": 10101,
-  "script": "behaviour.lua"
+  "script": "scripts/behaviour.lua"
 }
 ```
 | Field  |  Type  |  Notes  |
 |--------|--------|---------|
-| script | text | the FILE NAME, nothing else. No folders, no "..", no path out of the mod
+| script | path | a .lua file inside the mod. A folder may be part of it. No "..", no path out of the mod
 
 There is one key and it is a plain string. No default name is picked up, so a .lua file sitting in the folder with
-nothing pointing at it never runs. A name with a slash or a `..` in it is refused outright and told so -- the manifest
-names a file inside the mod and nothing else. A missing file, an unreadable one, or one too large to be a behaviour
-file is reported against the mod rather than failing quietly. The script gets the character from the top-level
-declaration, so it does not name one itself.
+nothing pointing at it never runs. A folder may be part of the name -- **Start a script** puts a new one in the mod's
+`scripts` folder and writes that path here -- while anything that would point OUT of the mod is refused outright and
+told so: a full path off your own disk, a drive letter, a leading slash, a `..`. A missing file, an unreadable one, or
+one too large to be a behaviour file is reported against the mod rather than failing quietly. The script gets the
+character from the top-level declaration, so it does not name one itself.
 
-What a script does is answer questions a declaration cannot ask. It may be told when things happen, adjust numbers the
-game is deciding, deny something the game would allow, or suppress something it would do:
+**A mod has ONE script slot, so pointing the key at another file REPLACES the one that runs.** There is no second
+slot and nothing is added: the file that was named stays where it is in the folder and simply stops being read.
+That is also what "stop running it" does -- it clears the key and leaves your work on disk.
+
+**Move the file and the key does not follow it.** If mod.json still says `behaviour.lua` and the file is now at
+`scripts/behaviour.lua`, nothing runs and the mod's problem list reports no such file. The **Behaviour script** field
+looks for it before saying that: a file of the same name anywhere else in the mod is offered as "point this mod at
+it", which rewrites the key and leaves your file exactly where you put it. If more than one file answers to that
+name you are shown all of them and pick; if there is genuinely nothing of that name in the mod, you get the old
+answer, which is the one case where starting a new script under that name is right.
+
+**Not every build runs them.** Scripting is decided when Limbonia is compiled, so it is either in your copy or it is
+not there at all. The way to tell is the companion: when scripts are in, there is a **Scripts** panel. When they are
+not, a mod that ships a `.lua` still loads and everything else in it works -- and the mod's own list of problems
+carries one sentence saying the script will never be read, so it does not fail in silence. Check for the panel
+before you write one.
+
+What a script does is answer questions a declaration cannot ask. There are four ways to register a handler, and the
+word you use is what decides the kind of answer you are allowed to give:
 
 ```lua
-on(TIMING.BEFORE_GIVE_ATTACK, function(e) log(e.damage) end)
-contribute("attackDamage", function(e) return e.damage + 5 end)
-gate("recoverSp",          function(e) if e.unit.hp < 20 then return false end end)
-veto("break",              function(e) return e.unit:hasBuff(12) end)
-on(TIMING.ON_KILL_TARGET,  function(e) addBuff(e.unit, 1, 3, 3) end)
+on(TIMING.BEFORE_GIVE_ATTACK,      function(e) log(e.damage) end)
+contribute(DECISION.ATTACK_DAMAGE, function(e) return e.damage + 5 end)
+gate(DECISION.RECOVER_SP,          function(e) if e.unit.hp < 20 then return false end end)
+veto(DECISION.BREAK,               function(e) return e.unit:hasBuff("Laceration") end)
+on(TIMING.ON_KILL_TARGET,          function(e) addBuff(e.unit, "emberdebt", 3, 3) end)
 ```
+
+`on` runs at a moment and its answer is ignored. `contribute` changes a number the game is in the middle of working
+out -- return the new number, or return nothing to leave it alone. `gate` denies something the game would otherwise
+allow: return false. `veto` suppresses something it would otherwise do: return true. Those last two only ever move
+one way -- a gate cannot turn a no into a yes, and a veto cannot undo a suppression the game has already made. All
+four are registrations, so they go at the top level of the file; you cannot add a handler from inside a handler.
+
+`TIMING` and `DECISION` are tables the game itself publishes, and writing the moment or the decision as a plain
+string is refused when the script is read, with the name you should have written given back to you.
+
+**Several mods can change the same number and all of them get their way.** Contributions chain: the first handler is
+shown the game's own figure, and every one after it is shown what the previous one left. So two mods each writing
+`return e.damage + 5` produce ten more damage, not five. What you return REPLACES the number you were shown rather
+than being added to it -- which is why "add five" is written as `e.damage + 5` and why a mod that returns a flat
+number wipes out what came before it, deliberately. Handing back the number you were shown changes nothing at all.
 
 That last line is the shape of it: "only when this blow finished something off" is not a thing mod.json can say, so
 writing it as a declaration would fire on every hit. This is also where a status effect you declared under `buffs`
 gets its meaning -- the effect is a counter the game maintains, and the script is what reads it.
 
-**A script presents nothing.** Anything that appears on screen or comes out of the speakers is authored as a beat on
-the character's own timeline, on the same clock as the animation. A script cannot place one.
+**A script decides; the timeline presents.** A whole round is worked out the instant you confirm it and played back
+over the following half-minute, so a handler runs seconds before the animation it would be describing. That is why
+speech bubbles, shakes, camera moves and sound cues are beats on a coin rather than something a script places: a
+script has no way to know which moment on screen its call belongs to. The two things a script can change about what
+you see -- floating a status line, and putting a character into one of its FORMS -- are held and landed at a blow
+that is actually on screen rather than at the moment the handler ran, so neither of them is an exception: neither
+picks a moment.
 
 **At unit spawn a script may watch and may not act.** Asking the game to do something while the stage is still being
 put together returns nothing and leaves you a sentence saying where to move the line to. That is containment, not
 fussiness: doing per-unit work in that loop softlocks the game.
 
-Write the .lua beside mod.json, press Reload, and read the fault list. The sandbox has budgets and a quarantine, but
+**The list of what a script can call is not in this document, on purpose.** Limbonia publishes its own surface --
+every moment, every decision a `contribute`/`gate`/`veto` can attach to, every field on the event, every method on a
+character -- and the companion's script editor completes out of that, live. A written list kept here would describe
+one build and then quietly stop being true. The whole of it, written out from the game's own surface, is published
+instead: **Open the reference** on the Scripts panel, or **Reference** in the script editor's toolbar, opens it in
+your browser.
+
+Write the .lua inside the mod, press Reload, and read the fault list. The sandbox has budgets and a quarantine, but
 nothing here assumes a DOWNLOADED script is safe to run.
+
+**Everything above is the `script` KEY.** How to actually write one -- what each of the four verbs lets you answer,
+which character a handler is about, coins, criticals, SP, status effects, transformations, and the mistakes that
+produce a script which loads cleanly and does nothing -- is in [scripts info.md](scripts%20info.md).
 
