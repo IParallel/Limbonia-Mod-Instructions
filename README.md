@@ -7,6 +7,8 @@ does — the art, the names, the voices, the sounds, the animations, the effects
 cut-ins, the status effects. A mod can also carry a Lua script, which is how it
 *behaves* rather than how it looks.
 
+## better for you to visit **[Limbonia Docs](https://limbonia.ibello.cc/docs)**
+
 ---
 
 ## What is here
