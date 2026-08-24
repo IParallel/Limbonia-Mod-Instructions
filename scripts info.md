@@ -153,15 +153,15 @@ local WATCHING = { "Laceration", "Sinking" }
 
 on(TIMING.ON_START_TURN, function(e)
 	for _, name in ipairs(WATCHING) do
-		local n = e.unit:buffStacks(name)     -- each one spends from the handler's allowance
+		local n = e.unit:buffStacks(name)     -- each one asks the game a question
 		if n and n > 0 then log(name, n) end
 	end
 end)
 ```
 
-Two names is comfortable. A loop of colon calls is the one shape to be careful with, because every turn of it asks
-the game for something and a handler's allowance is small on purpose — see **Budgets, failures, and one handler
-going quiet**.
+A loop of colon calls is the one shape worth thinking about, because every turn of it asks the game for something
+and that is the only thing here that costs the fight any real time — see **Budgets, failures, and one handler going
+quiet**.
 
 **If the top level stops with an error, the whole script is abandoned — including the handlers it had already
 registered.** Reading the file is one attempt: it either finishes and every registration in it stands, or it fails
@@ -451,7 +451,8 @@ contribute(DECISION.ATTACK_DAMAGE, { skill = 2 }, function(e) return e.damage * 
 
 **Two handlers, not one handler with an `if` in it.** The filter is applied before your function is called, so the
 second one simply does not run while the first skill is being used. That matters more than it looks: a handler that
-runs and returns early still counts against your budget and still shows up in the coverage list as having fired.
+runs and returns early still costs the time it takes to start, and still shows up in the coverage list as having
+fired.
 
 **It combines with `scope`**, and the two read the way you would say them out loud:
 
@@ -561,7 +562,7 @@ says of it that it *works when damage is worked out*.
 
 **And where it does arrive, it arrives once per end-of-round damage calculation rather than once for the round.** A
 round in which four characters are bleeding raises it **four times**, and each of those is a separate run of your
-handler with its own allowance. That reads as a surprise only because the name describes an event and the moment
+handler. That reads as a surprise only because the name describes an event and the moment
 counts calculations — see **How often a moment fires is decided by what carries it** below, which is the rule this
 is an instance of. A counter incremented in an `ON_END_ROUND` handler does not count rounds; it counts ticks, and
 the number it lands on depends on what the enemies happened to be carrying. **There is no way to make it per-round.**
@@ -632,7 +633,7 @@ animation — and reading it as a commentary is how a perfectly correct handler 
 place.
 
 **`TIMING.ON_HIT` is the one exception, and only half of one.** It is raised at the frame a blow actually lands, so it
-*arrives* in step with the picture — which is why it is the moment `showEffect` draws from immediately and the moment
+*arrives* in step with the picture — which is why it is the moment `showBuff` draws from immediately and the moment
 `setForm` takes effect immediately. What it reads is not in step: the character's own numbers were settled back when
 the round resolved, like everything else here.
 
@@ -1073,8 +1074,7 @@ want when a handler was entered about an arm and what you meant was the boss.
 
 ```lua
 -- Wound every piece of a boss as the fight opens. Reading the list is free; each takeHealth
--- spends one of the handler's requests, so a creature with more pieces than that will run out
--- part way -- see "Budgets, failures, and one handler going quiet" for the allowance.
+-- asks the game for something, so a creature made of many pieces does that many times over.
 on(TIMING.ON_BATTLE_START, function(e)
 	for _, p in ipairs(e.unit.parts or {}) do p:takeHealth(5) end
 end)
@@ -1605,6 +1605,350 @@ the game's own effects.
 
 ---
 
+## Passives
+
+A passive is one of the standing abilities a character brings into a fight — the ones written on its page rather
+than chosen each turn. Most of them do not simply run: they wait for a requirement, usually a number of the chosen
+skills sharing a sin, and they act only while that requirement is met. A script can read all of that, and it can
+overrule it in either direction.
+
+**There are two families and a script can see both.** A character's *own* passives are its own and its equipped
+E.G.O.s'. A *support* passive is one the bench is supplying — it belongs to the whole side and to no character on
+it. `passives()` hands back both, from whichever character you are holding, and each entry says which it is:
+
+```lua
+on(TIMING.ON_BATTLE_START, function(e)
+	for _, p in ipairs(e.unit:passives()) do
+		log(p.id, p.name, p.active and "on" or "off", p.support and "(from the bench)" or "")
+	end
+end)
+```
+
+Each entry carries its number (`id`), what the game calls it (`name`), whether it counts right now (`active`),
+whether a script has forced it (`forced`), which family it is in (`support`), whether it came from an E.G.O.
+(`ego`, and `egoId` for which one), and what it is gated on (`needs`). The full list is in the reference under
+**What a passive is**.
+
+`support` is a fact about **the passive**, not about where it happens to be listed — a support passive answers
+`true` wherever it turns up. That matters because it is what decides how far a `forcePassive` reaches: read it
+before you write one.
+
+**`needs` is the requirement itself.** Each entry names a sin, how much of it is wanted, and which kind of
+requirement it is — `"resonance"` for how many of the chosen skills share that sin, `"affinity"` for how much of it
+the side has banked. A passive gated on nothing at all has an empty `needs`, which is a real answer, so check its
+length rather than treating empty as a failure:
+
+```lua
+for _, n in ipairs(p.needs) do
+	log(p.name, "wants", n.count, n.sin, n.kind)
+end
+```
+
+### E.G.O. passives are not there from the start
+
+This is the one thing about the list that catches people out, and it is worth reading before you decide something
+is broken.
+
+**A character does not carry its E.G.O.'s passives until it has used that E.G.O.** They arrive at the start of the
+round *after* the one it was used in. Until then the E.G.O. contributes nothing to `passives()` — and an E.G.O.
+whose passive has not met its own unlock requirement, which is usually a matter of how far that E.G.O. has been
+raised, never contributes anything at all.
+
+So an E.G.O. passive that is not there yet **is not a row saying `active = false` — it is no row at all**, and
+`hasPassive` answers `false` for it. That is a different thing from a passive sitting dormant waiting on sins, and
+the two look identical from inside a script unless you know which you are looking at.
+
+Two ways to work with that:
+
+* **Turn on the "Enable EGO passives" setting.** A team then has its E.G.O. passives from the first round, without
+  using the E.G.O. and whatever it has been raised to. This is the reliable way to write and test against them.
+* **Or write for both states.** Check `#e.unit:passives()` or look for the `egoId` you care about, and treat "not
+  there" as its own case rather than assuming a row exists to read.
+
+`egoId` tells you which E.G.O. brought a passive, and only an E.G.O.'s passive has one — so it doubles as the way
+to ask:
+
+```lua
+on(TIMING.ON_START_ROUND, function(e)
+	for _, p in ipairs(e.unit:passives()) do
+		if p.egoId then log(p.name, "came from E.G.O.", p.egoId) end
+	end
+end)
+```
+
+### Asking about one
+
+`hasPassive` and `passiveActive` are the two halves of the question, and they are worth keeping apart:
+
+```lua
+if e.unit:hasPassive(40001206) and not e.unit:passiveActive(40001206) then
+	log("it has it, and it is sitting dormant")
+end
+```
+
+A character carries its passives from the moment it arrives, so `hasPassive` is true long before anything happens.
+`passiveActive` is the one that says whether the fight is letting it act — and that is the same answer the fight
+itself acts on, so a passive reading `false` there is genuinely doing nothing.
+
+### Making one count, or making one stop
+
+`forcePassive` takes the decision away from the fight:
+
+```lua
+on(TIMING.ON_START_ROUND, function(e)
+	if e.unit:buffStacks("Laceration") >= 5 then
+		e.unit:forcePassive(40001206, true)      -- counts, whatever its requirement says
+	else
+		e.unit:forcePassive(40001206, nil)       -- your opinion off: the fight decides again
+	end
+end)
+```
+
+**Three answers, not two.** `true` makes it count whether or not its requirement is met. `false` makes it *not*
+count even where it would have. `nil` takes your opinion back off and hands the decision to the fight. Those are
+three different things, so leaving the second part off entirely is refused rather than guessed at.
+
+This changes what the fight *does* and not merely what it shows: a passive made to count acts, and one made not to
+count is skipped along with everything it would have done. It takes hold at once — you do not have to wait for
+anything.
+
+**It lasts for the round it was asked in.** It is dropped when the round finishes playing out, so say it again from
+a moment that comes round every round — `TIMING.ON_START_ROUND` or `TIMING.ON_BATTLE_START` — if you want it to keep
+holding. Saying it again is harmless — the same answer twice is the same answer, and it replaces rather than
+stacks, which is why the example above is written that way.
+Nothing carries over on its own: a character can be rebuilt between rounds, and an opinion left lying about would
+end up being answered for by whoever stood there next.
+
+**A support passive is a decision about the whole side.** That is what such a passive is: it is not attached to the
+character you named, it is being supplied to everyone. Forcing one on or off changes it for the entire team. One of
+the character's own applies to that character alone. `p.support` on the entry tells you which you are about to do,
+and it is worth reading before you write the line.
+
+### Passives are numbered, not named
+
+Unlike a status effect, a passive is named by its **number**:
+
+```lua
+e.unit:forcePassive(40001206, true)      -- yes
+e.unit:forcePassive("Lavacrum", true)    -- refused, with a sentence saying why
+```
+
+A status effect has a name the game keeps in one language, so a script can compare against it anywhere. A passive
+has only a line translated per language — comparing against that would work for you and for nobody else. `p.name`
+is there to be *read*; `p.id` is there to be compared, and `passives()` is where you find the number.
+
+**A number that names no passive on this character, and none its side supplies, is refused** rather than quietly
+stored. So is a passive that is in the game's tables in name only, carrying no behaviour of its own. Read the
+second value if a line is not doing what you expect:
+
+```lua
+local ok, why = e.unit:forcePassive(40001206, true)
+if not ok then log("no:", why) end
+```
+
+---
+
+## Which skills a character gets offered
+
+Every character carries a **pool** of skills — a bag of numbers. At the start of a round the fight reaches into
+that bag at random and pulls out the skills it offers you, plus one it holds back for the round after.
+
+**Copies in the bag are the odds.** That is the whole of the mechanism; there is no percentage anywhere in it. A
+character whose bag holds its second skill twice and each of the others once is twice as likely to be offered the
+second. So "make this character use its third skill more" and "put another copy of its third skill in the bag" are
+the same sentence, and the second one is writable.
+
+```lua
+on(TIMING.ON_START_ROUND, function(e)
+	for _, id in ipairs(e.unit:skillsByTier(3)) do
+		e.unit:setSkillCopies(id, 3)      -- three copies of it in the bag, from now on
+	end
+end)
+```
+
+**`TIMING.ON_START_ROUND` is the moment for all of this.** It comes round before every round's skills are drawn,
+so a pool changed there is the pool the fight actually draws from, and it comes round *again* every round, which is
+how a change is kept up. Nothing here carries over on its own — a character is rebuilt between waves and between
+fights.
+
+### Naming a skill
+
+Skills are numbered, not named — the same rule as passives, for the same reason: a skill's name is one translated
+line per language, so a script comparing against it would work for its author and nobody else. There are three
+places to read a number off:
+
+```lua
+e.unit:skillsByTier(2)    -- this character's second-tier skills, whoever it is
+e.unit:skillPool()        -- everything in the bag, as skill number -> how many copies
+e.skill.id                -- the skill a handler is running for
+```
+
+**`skillsByTier` is the one that makes a script portable.** Every character's skills have different numbers, so
+"this character's second skill" is only writable at all because of it. It takes 1, 2 or 3 — the number printed on
+the skill card, which is the same number `e.skill.slot` carries.
+
+**It hands back a LIST, and that is not tidiness — a character can have more than one skill at the same tier.**
+Two different third skills is an ordinary thing for a character to have. A single answer would have to pick one of
+them and say nothing about it, leaving the other unreachable, so you get all of them, lowest number first:
+
+```lua
+local threes = e.unit:skillsByTier(3)
+if #threes > 0 then log("first of them:", threes[1]) end
+if #threes > 1 then log("and there is another:", threes[2]) end
+```
+
+It is a list even when there is one in it, so read it the same way every time. **An empty list is a real answer** —
+not every character has all three tiers. And it looks in the *pool*, so a skill you removed with
+`setSkillCopies(id, 0)` is no longer listed.
+
+**The skill number is the currency; the tier is only how you discover it.** Every verb that changes something takes
+an id, never a tier — there is no way to say "the second one of the tier-3 skills" to a write verb, because that
+ordinal is not something you could know in advance.
+
+### Looking before you write
+
+Five things you can ask, and the writing verbs are much harder to use without them:
+
+```lua
+local pool    = e.unit:skillPool()      -- what it HAS:  { [skillId] = copies }
+local left    = e.unit:drawPile()       -- what is LEFT of it this round, duplicates kept
+local showing = e.unit:offeredSkills()  -- what is on its panel right now
+local waiting = e.unit:readySkills()    -- what it has already drawn for NEXT round
+local firsts  = e.unit:skillsByTier(1)  -- every skill it has at tier 1
+```
+
+**`skillPool` is a photograph, not the bag.** The fight builds it fresh for the question, so writing into what you
+get back changes nothing at all. It is keyed by skill number, so `pool[id]` answers "how many of that one?"
+directly and `for id, copies in pairs(pool)` walks the lot — it is not a list, so `#` on it means nothing.
+
+**`drawPile` is the other half of `skillPool`.** One says what the character owns; the other says what has not been
+drawn yet this round. Duplicates are kept in it, because the duplicates *are* the copies still to come. It is a
+plain list — walk it with `ipairs`.
+
+**`readySkills` is empty until a round has been played,** and this catches everybody once. The skill for the round
+after is drawn *as the current one is used*, so on the first round there is nothing waiting. That matters because
+the two verbs below need something to be waiting.
+
+An empty answer from any of these is a real answer, not a failure. Check the length rather than treating empty as
+broken.
+
+### Deciding what comes next
+
+```lua
+on(TIMING.ON_START_ROUND, function(e)
+	local firsts = e.unit:skillsByTier(1)
+	if #firsts > 0 then
+		local ok, why = e.unit:setReadySkill(firsts[1])
+		if not ok then log("not this round:", why) end
+	end
+end)
+```
+
+`setReadySkill` puts a skill into the slot for next round whatever the character drew. `swapReadySkill(from, to)`
+does the same but only where the character drew one particular skill — use `setReadySkill` when you want the slot
+to hold something regardless, and `swapReadySkill` when you want to intercept *one* draw.
+
+**Neither of them changes the pool.** The skill they replace goes back into the pile, so these decide the ORDER and
+not the contents.
+
+### Weighting the bag, and taking a skill out of it
+
+`setSkillCopies(id, count)` says how many copies of a skill the pool should **end up** holding. It is not how many
+to add, which is what makes it safe to say every round: stating the same number twice is the same as stating it
+once.
+
+```lua
+e.unit:setSkillCopies(id, 4)    -- four copies: offered far more often
+e.unit:setSkillCopies(id, 1)    -- back to one, however many there were
+e.unit:setSkillCopies(id, 0)    -- gone. The character is not offered it again.
+```
+
+**`0` is a real instruction and it really removes.** The skill leaves the pool and leaves what is left of it this
+round, so the character stops being offered it from that moment. That is the way to say "this character can never
+reach that skill again".
+
+**One call is refused outright: one that would leave the pool with nothing in it.** A character with an empty pool
+has nothing for the fight to draw and no way to say so, so it is not allowed to happen — leave it at least one
+skill. If what you want is "none of the old skills, only this one", swap them rather than removing them.
+
+The verb hands back **how many copies the pool really holds now**, read back off it rather than echoed:
+
+```lua
+local now, why = e.unit:setSkillCopies(id, 3)
+if now ~= 3 then log("did not take:", why) end
+```
+
+### Two ways `setSkillCopies` quietly does nothing on the way UP
+
+Both are the game's rules rather than ours, and both are invisible from inside a script:
+
+1. **The number names a skill this character does not carry.** A character can only be given more of what its own
+   data already knows about.
+2. **A pool is kept one sin at a time,** and the character has no skill of that sin for the new one to go beside.
+   A character with no Wrath skills cannot be given a Wrath one, however valid the number is.
+
+The sentence that comes back says which of the two it was. **Asking for more of a skill the character already has
+always works** — that is the case worth building on. Coming back *down* has no such catch.
+
+### Replacing a skill outright
+
+```lua
+-- everything that was skill 1 is skill 3 from now on, same number of copies
+local ones, threes = e.unit:skillsByTier(1), e.unit:skillsByTier(3)
+if #ones > 0 and #threes > 0 then e.unit:swapSkill(ones[1], threes[1]) end
+```
+
+With no slot named this is the whole character: every copy in the pool becomes the new skill, **the number of
+copies is kept**, and what the character is currently holding and has drawn changes with it. Name a slot instead —
+`e.unit:swapSkill(from, to, 1)` — and only what that slot is holding changes, leaving the pool alone.
+
+**This is the other way to stop a character having a skill, and the difference from `setSkillCopies(id, 0)` is the
+whole reason both exist.** `setSkillCopies(id, 0)` takes the copies *out* and the pool gets smaller.
+`swapSkill(from, to)` turns them into something else and the pool stays exactly the size it was. When a character
+has only one skill left, the second is the one that still works.
+
+**The skill you swap *to* should be one that character owns.** Nothing stops you passing a number belonging to
+somebody else and the fight will try, but it is not something this character is built to use.
+
+### From, then to
+
+Every verb here that names two skills takes them in the same order: **the one that is there now, then the one that
+replaces it.** `swapSkill(from, to)`, `swapReadySkill(from, to)`. Getting a pair like this backwards is a silent
+kind of wrong — the call is perfectly well formed, it matches nothing, and it does nothing — so it is worth
+reading the line back once.
+
+### Every one of them says whether it did anything
+
+The four verbs that change something can all do nothing at all, for reasons a script cannot see from outside. None
+of them reports what it *asked* for: each reads the thing it is about to change, asks, reads it again, and answers
+out of what it finds.
+
+The three that decide what a slot is holding — `setReadySkill`, `swapReadySkill`, `swapSkill` — answer yes or no:
+
+```lua
+local ok, why = e.unit:setReadySkill(id)
+```
+
+* `true` means it really changed something.
+* **`false` is a real answer and not a refusal** — the call was made and there was nothing to change, which happens
+  far more often than it sounds. It always comes with a sentence saying why.
+* `nil` plus a sentence is a refusal: the call was turned away and the fight is untouched.
+
+`if not ok then` catches both of the last two, which is usually what you want. `if ok == false then` separates them
+when it is not.
+
+`setSkillCopies` answers with a number instead — **what the pool holds now** — so you compare it against what you
+asked for. `0` there is a success when `0` is what you asked for, and every number is truthy in Lua, so
+`if e.unit:setSkillCopies(id, 0) then` is true either way. Test the value, not its truthiness:
+
+```lua
+local now, why = e.unit:setSkillCopies(id, 0)
+if now == nil then log("refused:", why)
+elseif now ~= 0 then log("did not take:", why) end
+```
+
+---
+
 ## Changing a character directly
 
 Beyond status effects, a script can move a character's health in either direction, its protection and its SP, and
@@ -1732,7 +2076,7 @@ full.
 
 **As big as you like. There is no ceiling of ours on any of these.** `giveShield(90000)` grants ninety thousand
 protection, exactly: the game stores it as the plain number it is handed and nothing on the way in trims it. The
-same is true of stacks and turns on an effect, and of the numbers `showEffect` puts on screen.
+same is true of stacks and turns on an effect, and of the numbers `showBuff` puts on screen.
 
 The limits you will actually meet belong to the **game**, and telling those apart from ours matters — you cannot
 change ours, and you can sometimes change these:
@@ -1858,11 +2202,11 @@ anywhere in this game.
 `giveShield` shows nothing at all, and that is parity rather than a gap — the game's own protection is silent too,
 it simply appears on the bar.
 
-`showEffect` is the tool for putting something on screen at a moment of your own choosing, whatever the game does.
+`showBuff` is the tool for putting something on screen at a moment of your own choosing, whatever the game does.
 
 ---
 
-## The three things a script puts on screen deliberately
+## The four things a script puts on screen deliberately
 
 **A script decides; the timeline presents.** Because the round is settled before any of it is drawn — see **The round
 is decided before you watch any of it** — a script has no way to know which moment on screen its call belongs to, and
@@ -1877,12 +2221,38 @@ the picture of the round was finished before it came round, and the change sits 
 round while the call reports success. `TIMING.BEFORE_GIVE_ATTACK` is the one to reach for. Neither verb is a way of
 *saying* something, which is what the three below are for.
 
-All three are **held and landed at a moment that is really on screen**, rather than at the moment the handler ran, so
-none of them picks a moment either.
+The first three are **held and landed at a moment that is really on screen**, rather than at the moment the handler
+ran, so none of them picks a moment either. The fourth does not need that treatment, because what it puts on screen
+stays there — see **An effect that stays up** below.
 
-**`showEffect`** floats the game's own status-effect line — a symbol and a number that fades. It applies nothing.
+**`showBuff`** floats the game's own status-effect line — a symbol and a number that fades. It applies nothing.
 Asked for away from the screen it is held and drawn on the blow it belongs to; asked for from `TIMING.ON_HIT` it
 draws straight away, because that moment *is* the blow.
+
+Its last argument, `text`, is what to say **instead of** the effect's name — and when you give it, **the amount is
+not drawn either.** That is the whole point of it. The number the game puts on that line means *this much of the
+effect was gained*; if what you want to show is what the effect just **did**, that number is answering a different
+question, and two numbers on one line with one of them wrong is worse than either alone. So the words replace the
+lot, and the symbol stays:
+
+```lua
+-- the effect's own line: the Laceration symbol and "+2"
+showBuff(e.victim, "Laceration", 2)
+
+-- the same symbol, saying what it cost instead
+showBuff(e.victim, "Laceration", 1, 0, 37)
+
+-- and the symbol on its own, with nothing beside it
+showBuff(e.victim, "Laceration", 1, 0, "")
+```
+
+An **empty** `text` is a real answer and means the symbol alone. **Leaving the argument out is not the same thing** —
+left out, the game writes the line as it always did. A number works as well as words: it is written out exactly as
+`tostring` would write it. Keep it short. It is a small line that fades while it rises, so a few characters is what
+anyone reads; a long one is drawn anyway, with a note back saying the tail was cut.
+
+Because the words replace the whole line, the `amount` and `turns` before them stop being drawn — pass `1, 0` and
+give the words. The `1` is there to say *one line*, not to be read.
 
 **`showOnBanner`** writes a status row onto the panel that rises over a character while their skill plays — the one
 carrying the skill's name, the coin, and a row for each thing bearing on the attack. It applies nothing either.
@@ -1959,7 +2329,7 @@ counter go up on the status bar and is never told which skill did it. `showOnBan
   are all bare chips — *"Poise 4"*, *"Shin (心) - Disgrace 1"*. Write for that: **put the meaning in the title** and
   treat the sentence as detail for the panels that have room. Nothing here fights it — forcing a layout would mean
   writing into the game's own UI state and would be undone the next time the panel rebuilt itself.
-* **Not from `TIMING.ON_HIT`.** That is the one moment that cannot work, and it is the opposite of `showEffect`'s
+* **Not from `TIMING.ON_HIT`.** That is the one moment that cannot work, and it is the opposite of `showBuff`'s
   advice. The panel is built while the round is being worked out; `ON_HIT` is the blow *landing*, which is the replay,
   by which point that round's panel is long since finished. Every other moment during the round works —
   `ON_START_TURN` is the straightforward one.
@@ -2125,6 +2495,68 @@ what comes back rather than treating empty as a failure. `e.unit:appearance()` s
 the name a mod addresses it by, which is how you recognise **your** character without comparing numbers and how you
 tell an E.G.O. or an alternate outfit apart from the ordinary one.
 
+### An effect that stays up — `playVisual` and `stopVisual`
+
+The three above all *say* something at a moment. This one does not: it puts one of the game's own visual effects
+on a character — an aura, a glow, a smoulder — and **leaves it there** until you take it off or the fight ends.
+
+```lua
+-- this one has drawn blood, and everybody can see it for the rest of the fight
+on(TIMING.ON_KILL_TARGET, function(e)
+	playVisual(e.unit, "EFFECT_BLOOD")
+end)
+
+-- ...until something knocks it out of them
+on(TIMING.ON_BREAK_SELF, function(e)
+	stopVisual(e.unit, "EFFECT_BLOOD")
+end)
+```
+
+**You can ask for a colour.** A sixth argument, after the size, the place and the character it is borrowed from:
+
+```lua
+on(TIMING.ON_KILL_TARGET, function(e)
+	playVisual(e.unit, "EFFECT_BLOOD", 1, "default", "", "#44aaff")
+end)
+```
+
+These effects are drawn as a shape multiplied by a colour, so one drawn in grey becomes exactly the colour you
+ask for. Some have their colour painted into the artwork instead, and those take yours as a shading of what they
+already were - red on an orange flame is a deeper orange, not red. The effect list in the **Animation Timing**
+editor says which of the two each effect is, and says so plainly when it does not yet know. It works on any effect
+you can play: the game gives each character its own copy, so your colour never reaches anybody else's.
+
+**Why this is allowed when a sound or a camera move is not.** The rule at the top of this section is about
+*moments*: a script cannot pick a frame, because the round is settled long before the frame is drawn. Something
+that **stays up has no frame to be wrong about**. It goes on, it is there, it comes off — at no point does it have
+to agree with what is on screen at the instant you asked, so there is nothing for the delay to spoil.
+
+**There is deliberately no "play this burst once".** A burst *is* a frame, and a frame is the one thing a script
+cannot pick. Author one as a beat on the character's animation, on the **Animation Timing** screen, where it plays
+on the same clock the picture does.
+
+* **A visual is not a status effect, and the names are different.** Everywhere else on this surface `effect` means
+  a status effect — `"Laceration"`, `"Sinking"`. A visual is a picture and its names look like `"EFFECT_BLOOD"`.
+  Writing a status effect's name here finds nothing and says so.
+* **You cannot guess a name.** Open a mod in the **Animation Timing** editor: the effect picker there is fed from
+  the game's own catalogue and has a **Try it** button that puts one on a character standing in a battle.
+* **The character has to be on screen.** `TIMING.ON_BATTLE_START` is the earliest moment that works; it is refused
+  at `TIMING.ON_ADD_UNIT`, because none of the characters is being drawn yet. Every moment after that works,
+  including the ones `showBuff` has to be careful about.
+* **Asking twice re-plays it** rather than putting a second copy on. The game keeps one copy of each effect per
+  character.
+* **It ends when the battle does**, whether or not you stop it. Nothing else ever takes it off — so if it is meant
+  to come off earlier, some handler of yours has to say so, the way the second one above does.
+* `stopVisual` only takes off what `playVisual` put on. An effect a character's own mod declares in its `mod.json`
+  belongs to that mod.
+* Two more arguments if you want them: a **size** (a multiplier on what the game would give it, `1` by default) and
+  **where** it hangs — `"default"`, `"back"`, or `"skin"`, which is the one to try when an effect is on and you
+  cannot see it.
+
+**If the same rule is really about a status effect, write it in `mod.json` instead.** *While this character has
+Bleed, they smoulder* is one line of `gameEffects` with `"playsWhen": "while"` (see GAMEEFFECTS in mods info.md)
+and needs no script at all. Reach for `playVisual` when the rule is something only a script can decide.
+
 ---
 
 ## Before there is a fight
@@ -2217,9 +2649,9 @@ Four things about that list are worth knowing before you write one:
   — so a handler that wants to know what it is *facing* wants `ON_BATTLE_START` and `e.enemies`.
 
 **Walking `e.party` is free.** Every field on it was copied out before your handler started, exactly as a
-character's own fields are, so the loop above asks the game for nothing at all and cannot run into the allowance
-described under **Budgets, failures, and one handler going quiet**. That is a real difference from the same-shaped
-loop over `e.allies`, where every `u:buffStacks(...)` inside it is a request.
+character's own fields are, so the loop above asks the game for nothing at all and costs the fight no time
+whatever. That is a real difference from the same-shaped loop over `e.allies`, where every `u:buffStacks(...)`
+inside it is a request that enters the game.
 
 **And a misspelling inside a party entry is silent, which it is nowhere else.** `e.` and a character both catch a
 name that is not a field and stop the handler saying so; a party entry is an ordinary Lua table with nothing
@@ -2253,13 +2685,13 @@ character before deciding what to give it.
 character's first blow of the fight. It is not lost in between, so this is how you say what a character arrives already
 meaning to become.
 
-**Three names are refused here** — `showEffect`, `showOnBanner` and `showSkillLine` — and each tells you so when you
+**Three names are refused here** — `showBuff`, `showOnBanner` and `showSkillLine` — and each tells you so when you
 try. Nothing is on
 screen while the characters are arriving, so a line asked for now would be held, and held lines are cleared when the
 fight starts. It could never be drawn, and you would have been told it worked. Say it at the moment you want it seen.
-Applying a status effect announces itself without being asked, so a spawn rarely wants `showEffect` anyway.
+Applying a status effect announces itself without being asked, so a spawn rarely wants `showBuff` anyway.
 
-**A handler here runs once per character**, so it spends its own allowance of game requests on each of them — a fight
+**A handler here runs once per character**, so whatever it asks the game for is asked again for each of them -- a fight
 with fourteen characters runs it fourteen times. That is the number to size a spawn handler against.
 
 Remembering things across the setup and acting on the whole field at once is still the right shape when the decision
@@ -2301,24 +2733,27 @@ which is why a bug like this hides during testing and appears on the second figh
 
 ## Budgets, failures, and one handler going quiet
 
-A script runs on the game thread, on seams that fire thousands of times a fight. The ceilings are not suggestions:
+A script runs on the game thread, on seams that fire thousands of times a fight. Two things are worth knowing, and
+only one of them is a ceiling.
 
-* **A handler may ask the game for a few things of its own each time it runs.** Anything past that is ignored —
-  not queued. Reading a character's fields does not count; the colon calls do, every one of them, including the
-  ones that only ask a question like `buffStacks`.
-* **The allowance is your handler's own, and what other mods do has no bearing on it.** It is filled fresh for
-  each handler, one at a time, so a mod that spends the lot cannot leave the mod beside it running short — and a
-  refusal you read is always about the handler you wrote. Two mods that behave apart behave together.
-* **A handler is stopped if it runs too long**, by instruction count and by wall clock, and a script has a memory
-  ceiling. An overrun surfaces as an ordinary error against your mod, not as a hang.
-* `pcall` cannot swallow a budget stop. A loop that never ends cannot be wrapped out of trouble.
+* **There is no limit on how much a handler may do.** Ask the game for as many things as you like, in a loop, over
+  every character a moment gives you. Nothing is turned away for being too much, and no amount you pass has a
+  ceiling of ours on it.
+* **A handler is stopped if one run of it takes too long**, by instruction count and by wall clock, and a script has
+  a memory ceiling. An overrun surfaces as an ordinary error against your mod, not as a hang.
+* `pcall` cannot swallow that stop. A loop that never ends cannot be wrapped out of trouble.
 
-The exact figures are published with the rest of the surface and are in the reference under **Limits**. Read them
-from a live copy rather than from memory or an old saved one — they have moved before, and they moved *upward*, so
-a script written down to a remembered number is doing without room it now has.
+**That limit is there for a loop that never ends, and for nothing else.** It sits far past anything real work needs.
+It is not a judgement about how much a mod should be allowed to do — it is the only way back from a script that
+never returns, which would otherwise take the whole game with it. When you meet it, the cause is very nearly always
+a `while` or a `repeat` whose condition never comes true.
 
-**What the first of those is really there to stop is a loop of game calls**, which is the one shape the other two
-ceilings cannot see. A call into the game is a single instruction as far as Lua is concerned, so this:
+The figures are published with the rest of the surface and are in the reference under **Limits**. Read them from a
+live copy rather than from memory or an old saved one.
+
+**What actually costs time is asking the game for something.** Reading a character's fields does not: `e.unit.hp`,
+`u.staggered`, `u.sp` and the rest were copied out before your handler started, and cost nothing at all. The colon
+calls do, every one of them, including the ones that only ask a question like `buffStacks`. So this:
 
 ```lua
 on(TIMING.ON_START_ROUND, { scope = "any" }, function(e)
@@ -2329,11 +2764,13 @@ on(TIMING.ON_START_ROUND, { scope = "any" }, function(e)
 end)
 ```
 
-is a few dozen instructions and finishes comfortably inside both the instruction count and the clock — having asked
-the game for something once for every character on the field. Neither of the other two ceilings would ever notice.
-So the allowance is deliberately set below what a walk of a full roster needs, and that loop is refused a short way
-in: early enough that what arrives is a sentence you can read, rather than a frame that has already gone. Ask about
-the characters you actually care about, or spread the work over more than one moment.
+asks the game something once for every character on the field, and that is a perfectly reasonable thing to write.
+What it costs is a slightly longer frame, and the moment you write it on decides how much that matters: once a
+round is nothing, once for every coin flip is a different proposition entirely.
+
+**If a script makes the game stutter, you will see it** — and the fix is yours to make. Move the work to a moment
+that comes round less often, ask about the characters you actually care about, or lift out of the loop whatever
+does not need to be inside it.
 
 **A handler that keeps failing is switched off — and it is one handler, not your script.** Repeated failures in one
 fight quiet that handler for the rest of it; enough across a session quiet it until the next rescan. Its siblings in
@@ -2452,7 +2889,7 @@ end)
 on(TIMING.ON_HIT, function(e)
 	if not e.victim then return end
 	local owed = e.victim:buffStacks("emberdebt")
-	if owed and owed > 0 then showEffect(e.victim, "emberdebt", owed) end
+	if owed and owed > 0 then showBuff(e.victim, "emberdebt", owed) end
 end)
 
 -- The counter belongs to this fight, so it is cleared when the fight ends.

@@ -315,6 +315,36 @@ off again when you are done: it writes a line per voice.
 actually play is FMOD's call later, at load time. So a renamed mp3 passes the scan and then fails with "FMOD could
 not decode it" when it is first asked for. Use a plain PCM `.wav` or a real `.ogg`.
 
+**You can export one of the game's sounds and edit it.** Pick a sound, press export, and Limbonia decodes it
+straight out of the game's own sound bank into a `.wav` **inside your mod's `audio` folder**. Nothing has to be
+playing and you do not have to be in a fight - it reads the file on disk, so it works at the title screen.
+
+That gives you the whole round trip in one place: export, open the file in whatever you edit sound with, save it
+back where it already is, and name it in a `clip`. It is now a sound of your own and everything on this page
+applies to it.
+
+A few sounds cannot be exported, and each says which it is: a name the game does not have; a sound Limbonia could
+not find in any of the banks it read, so there is nothing for it to decode; or one whose bank it has not read yet,
+which fixes itself in a moment. The middle one is about Limbonia's own search and not about the game - if a sound
+refuses to export but plays when you audition it, report it. And sometimes the game names a sound's audio
+differently from the event that plays it - when that happens you are shown what is in that bank and you pick one,
+rather than being told no.
+
+**You can slow a sound down or speed it up.** `"speed": 0.5` makes it take twice as long, `2` makes it take half.
+It works on a sound of your own and on one of the game's, on a motion cue, on a `sounds[]` beat, on a status
+effect's cue (`soundSpeed` there, because that entry names its sound with `sound`), and on the audition button.
+From 0.05 to 10 - the same range the visual effects' `speed` uses.
+
+**It changes the pitch too, and that is not a bug.** Playing a recording slower means reading it slower, so it also
+comes out lower - the familiar "slowed down" sound. A voice becomes a growl and a sword swing becomes a boom. That
+is usually exactly what people want when they ask for this, but it is worth knowing before you put `0.3` on a line
+of dialogue. Limbonia does not stretch time while holding the pitch: doing that needs a pitch-shifting effect that
+smears the sharp edge off impacts, which are the very sounds this is most often reached for.
+
+**`stop` is not moved by it.** An end time is a moment on a real clock, so a sound played at half speed still stops
+when you told it to - it has simply got half as far through itself. If you slow a sound down and want all of it,
+raise `stop` as well or leave it out. Same rule as the visual effects' `seconds`.
+
 **Sound needs no Unity.** A `.wav` or `.ogg` sitting in the mod folder, named in `audio[]`, is a complete mod on its
 own: no bundle, no Unity project, no version to match. That is true of everything outside `motions` -- `names`,
 `art`, `voices`, `buffs`, `targetGroup` and `script` all work from files and text alone.
@@ -386,6 +416,7 @@ optionally a `fade`. Both are refused on a hit-anchored cue; see above.
 | time      | number | seconds, on that coin's clock. Not read when the cue is anchored to the hit
 | clip      | string | <modfolder>/<id> - note the namespace prefix 
 | volume    | number | optional, overrides the clip's own
+| speed     | number | how fast it plays. 1 (the default) is untouched, 0.5 is half speed and twice as long, 2 is double. From 0.05 to 10. Slower is also LOWER in pitch - see below. Does not move `stop`
 | stop      | number | when it stops, on the same clock as `time`. Omitted = plays to its own end
 | fade      | number | the ramp down to silence, ENDING at `stop`. Omitted = a short declick. Means nothing without `stop`
 | playsWhen | text   | "time" (default) or "hit" - see below
@@ -404,6 +435,91 @@ never read (write one and you are told it does nothing), and `stop`/`fade` are r
 all the way through -- an end time is a moment on the animation's clock, and a hit-anchored sound is not on it. To cut
 a sound short, leave it on `"playsWhen": "time"`. A sound anchored to the hit on a POSE motion can never be heard,
 because a pose never lands damage; that is reported too.
+
+**You can use the GAME's own sounds as well as your own.** Everywhere a mod names a sound -- a `cues[]` entry on a
+motion, a `sounds[]` beat, a status effect's own cue -- you can write one of the game's instead of a file of yours:
+
+```json
+"cues": [ { "time": 0.35, "clip": "event:/SFX/Battle/shield_break" } ]
+```
+
+**It is the same key.** `clip` takes either spelling and you never choose between two of them: a name beginning
+`event:/` is one of the game's, anything else is yours. Nothing about the rest of the entry changes.
+
+**The list is browsable and it is all of it.** Limbonia reads every sound the game has -- 56,237 of them -- straight
+out of its audio engine, and each one carries a **category** taken from its own path: `event:/SFX/Battle/…` is SFX,
+`event:/Voice/…` is Voice, and so on. The picker offers the categories with their counts, so you pick a category
+first and then look inside it. The list is complete the moment the game has started; there is nothing to wait for
+and nothing saved to disk.
+
+The names are the sound engine's own folder paths. They are readable, but they are engineers' names rather than
+titles somebody wrote for players, so browse and listen rather than trying to guess one.
+
+**Voice lines are in the list, and naming one is not the same as replacing one.** The Voice category is the largest
+by far -- 45,057 of the total. Naming one here PLAYS the game's own recording, wherever you put it. `voices[]`, a
+different section entirely, puts a recording of YOURS in place of a character's line. Both are useful; they are
+different acts.
+
+**Some sounds say who plays them.** While Limbonia is reading the game's characters it also notes which sounds each
+character's own animations fire, so a row can read **"Ryoshu (Spider Bud) - S3"** instead of just a folder and a
+name. About one sound in six carries an attribution like that - it is not most of the catalogue and is not meant to
+be. What it covers is almost entirely the battle sounds, which are the ones with nothing else to go on: a voice
+line has the character's number written into its own name, and a sword impact has nothing at all.
+
+A sound used by several characters shows the first one and says how many others also use it.
+
+**Limbonia reads the game's sound banks once, in the background.** It works through them a few at a time whenever
+you are not in a fight - never during one - to learn which bank holds which sound. It costs a few seconds in total
+and the answer is saved next to the game, so it happens **once**: every session after that it is there from the
+first second. If the game is patched it notices and reads them again by itself. Until it has reached a particular
+bank, a sound from that bank says so and asks you to try again in a moment.
+
+A bank that will not open on the first attempt is **tried again**, several times, spaced out - it is usually just
+the game still starting up. If one still refuses after all of that, Limbonia says so rather than pretending the
+sounds inside it do not exist.
+
+**Three things a name alone cannot tell you, and Limbonia says all three.** Press the audition button beside the
+picker and it plays there and then, and tells you what it turned out to be:
+
+* **How long it runs**, when it has a fixed length.
+* **Whether it loops.** A looping sound has no end of its own - so the audition button becomes a **toggle** for
+  those: press it again to stop it. (A one-shot has already finished by the time you could press it twice.)
+* **Whether it is positioned or flat.** A flat sound fills the screen rather than coming from anywhere.
+
+**There is a stop button, and it stops two different amounts.** By default it silences everything **Limbonia**
+started - your own sounds, and any looping game sound you left auditioning. That is exact, because Limbonia knows
+what it started, and it never touches the game's own audio. The bigger version stops **everything currently
+sounding**, the game's music and ambience included; new sounds play normally afterwards, but music that was already
+running stays stopped until the game next changes track. Reach for the first one first.
+
+**And three ways a declared one can fail, each of which lands on your mod's card rather than being silence:**
+
+* **A name the game does not have.** Reported when the mod is read.
+* **A sound whose part of the game is not loaded yet.** The list names every sound in the game, including ones the
+  current fight has not loaded. Limbonia **fetches** those: it knows which of the game's sound banks each sound
+  lives in, loads that one bank, and plays it. The first time you ask, you get "loading it -- try again in a
+  moment", exactly as you do when you borrow an effect from a character whose artwork is not on your machine yet.
+  A large bank takes a second the first time; the announcer's voice bank is the biggest at about 100MB, and a
+  wait is not a hang. Every sound the game actually ships is usable this way.
+* **A sound Limbonia cannot find a bank for.** The list of names comes from the game's audio project, and once
+  every bank has been read a handful of those names turn out not to be in any of them. Limbonia then has nothing
+  it could load to play that sound, and it says so instead of asking you to wait for something that is never
+  coming. It says it about *itself*, not about the game: the game reaches its own sounds by its own means, and
+  Limbonia is in no position to tell you what those are. If a sound refuses to export but plays perfectly when
+  you audition it, that is worth reporting - it means the bank list has a hole in it.
+* **A looping sound is refused outright.** You may audition one, but you may not declare one. The game hands its
+  sounds out and immediately forgets them, so there would be nothing left for Limbonia to switch a loop off with --
+  and a sound that runs for the rest of the session is worse than one that never plays.
+
+**Two things a declared game sound does not do.** It has no position -- it plays centred and at full level, the way
+the game plays a menu sound -- so putting one on a beat that belongs to a character does not make it come from
+them. And `stop`/`fade` do not apply: the game plays its own sounds to their end and keeps nothing that could cut
+one short. Ship the sound as a file of your own if you need to end it early. Both are reported rather than ignored.
+
+**They play at the game's own sound level, not the mod one.** A sound of yours rides Limbonia's own audio track so
+that the game's category sliders cannot silence it. One of the GAME's sounds is the opposite case: it already
+belongs to a category, and it obeys the game's own sliders exactly as it does when the game plays it. That is
+deliberate -- it *is* one of the game's sounds.
 
 # THE TOP LEVEL
 - the root of mod.json. Everything else in this document lives inside one of these.
@@ -599,7 +715,7 @@ inside the `assets` entry it was meant for. This is reported by name.
 | form   | text | which set of drawings this animation belongs to. Left out = the character as you normally draw it. See FORMS
 | becomes| [] | turn the character into another of its forms partway through the coin - see FORMS
 | cutIns | [] | the full-screen splash, with your own picture, at a moment on this coin - see CUTIN
-| camera | {} | shake / zoom / rotate - see CAMERA
+| camera | {} | shake / zoom (steady, or a shape you draw) / rotate - see CAMERA
 | move   | [] or {} | the character stepping about - see MOVE
 | sync   | text | auto / game / own, for this one animation
 
@@ -761,10 +877,19 @@ added `totalDuration` to get an effect playing on a pose, use ALWAYSON instead: 
 ```json
 "camera": {
   "shake":  [ { "time": 0.9, "duration": 0.3, "strength": 0.6 }, 1.4 ],
-  "zoom":   [ { "time": 0.2, "size": -3.0, "duration": 0.4, "between": 0.5 } ],
+  "zoom":   [ { "time": 0.2, "size": -3.0, "duration": 0.4, "between": 0.5 },
+              { "time": 1.1, "duration": 0.4, "points": [ { "time": 0.07, "depth": -1.4 },
+                                                          { "time": 0.17, "depth": 0.35 },
+                                                          { "time": 0.27, "depth": -0.6 },
+                                                          { "time": 0.40, "depth": 0 } ] } ],
   "rotate": [ { "time": 0.2, "z": 8, "duration": 0.5, "speed": 0.05 } ]
 }
 ```
+
+The second zoom above is a **shape**: instead of gliding to one framing, the camera goes where you put it -- in
+hard, back out past where it started, in again less far, then settles. That is a punch, and it is four numbers
+placed rather than a setting turned on. It is still a zoom in every other respect: same list, same `between`,
+same `focusSpeed`, same one-at-a-time rule.
 | shake  |  Type  |  Notes  |
 |--------|--------|---------|
 | time   | number | required. A bare number in the list means "at this time, everything else default"
@@ -778,12 +903,18 @@ added `totalDuration` to get an effect playing on a pose, use ALWAYSON instead: 
 | zoom   |  Type  |  Notes  |
 |--------|--------|---------|
 | time   | number | required
-| size   | number | HOW MUCH CLOSER. NEGATIVE ZOOMS IN. -12..12; the game's own clips live in 0..-6. Default -2
+| size   | number | HOW MUCH CLOSER. NEGATIVE ZOOMS IN. -12..12; the game's own clips live in 0..-6. Default -2. With `points`, this is worked out from the deepest of them and anything you write here is ignored
 | duration | number | how long the move to that framing takes, 0.01..6. Default 0.3
 | between | number | WHAT to frame: 0 = the acting character, 1 = its target, 0.5 = both. Default 0
 | focusSpeed | number | how quickly the camera chases that point, 0.01..2. Never 0. Default 0.2
 | axisY  | number | vertical bias, -5..5. The game leaves this at 0 on every clip
 | ease   | int | 1..40. Default 6
+| points | [] | THE SHAPE. Where the camera pushes and pulls, instead of moving one way. Left out = an ordinary zoom. Up to 32 of them
+
+| zoom point |  Type  |  Notes  |
+|--------|--------|---------|
+| time   | number | required. Seconds from the start of THIS ZOOM, not of the coin. Two points must be at least 0.02s apart
+| depth  | number | how far the camera is at that moment, in the same units and sign as `size` -- NEGATIVE IS CLOSER. A POSITIVE depth pulls the camera further out than where it started, which is the recoil of a punch. Default 0, which is back at the resting framing
 
 | rotate |  Type  |  Notes  |
 |--------|--------|---------|
@@ -796,9 +927,30 @@ added `totalDuration` to get an effect playing on a pose, use ALWAYSON instead: 
 **Nothing here is ever invented for you.** These are cosmetic, so leaving one out means "don't", never "pick
 something for me". A time that is not a usable number skips that entry and says so.
 
-**Never write `"ease": 0`.** Zero is DOTween's "unset", which sends the tween onto a curve a mod cannot supply and
-which the game does not check for null. It is clamped to 1 rather than passed on, but do not rely on that -- write a
-real one.
+**Never write `"ease": 0`.** Zero is DOTween's "unset", which sends the tween onto a curve rather than a preset. It
+is clamped to 1 rather than passed on, but do not rely on that -- write a real one. `points` is how you ask for a
+curve; there is no reason to reach for `ease` to get one.
+
+**A zoom always starts from where the camera already is**, so a key at time 0 and depth 0 is added to your shape for
+you. You do not write it, and you should not: without it the camera would jump to your first depth on the very first
+frame. Where the shape ENDS is yours -- a last point at full depth leaves the camera pushed in, and a last point at
+depth 0 brings it back to the resting framing.
+
+**How fast a shape can go, and why nothing is clamped.** Two neighbouring points are a rate: a push at 0.07s and a
+pull at 0.17s is five in-and-out moves a second. The camera smooths its own movement, so a slow shape comes through
+almost whole and a fast one is ironed flat before it reaches the screen. Around **five to eight a second** is where a
+push reads as an impact; past **twelve** there is nothing left of it. Points that close together are pointed out to
+you and then left exactly where you put them -- they are yours, and nothing here is going to redraw your shape
+behind your back. If a punch feels weak, make it **deeper**, not quicker: roughly **-0.3 to -1.5** is the punch
+range, well short of the -2 to -6 a sustained push-in uses. Speeding it up is the one thing that will not help.
+
+**Sharp and soft come from spacing.** Every point is a smooth turning place, so what makes a hit feel sharp is how
+close it sits to the point before it, and what makes the recovery feel soft is how far it sits from the one after.
+A push at 0.05s falling away to 0.30s snaps in and drifts out; the same two moments evenly spaced feels like a swell.
+
+**A shaped zoom is still one zoom.** The camera runs a single zoom at a time, so one overlapping an ordinary zoom
+does not layer -- the later one takes the camera over from wherever the first had got to. That is useful when you
+mean it and confusing when you do not.
 
 # MOVE
 - move[] - inside one assets entry. The character stepping about during the coin.
@@ -943,21 +1095,33 @@ running for the whole battle.
 "gameEffects": [
   "BUFF_BLEEDING",
   { "label": "EFFECT_BURN", "playsWhen": "hit", "seconds": 0.8, "scale": 1.4, "layer": "skin" },
+  { "label": "EFFECT_BLOOD", "playsWhen": "while", "whileEffect": "Laceration" },
   { "label": "EFFECT_FIRE", "playsWhen": "time", "motion": "S2", "coin": 0, "time": 0.35, "seconds": 1.2 }
 ]
 ```
 | Field  |  Type  |  Notes  |
 |--------|--------|---------|
 | label  | text | required. The game's own name for the effect. Exact - it is a dictionary lookup. A bare string in the list is this and nothing else
-| playsWhen | text | "always" (default) - there for the whole fight. "hit" - when this character's damage lands. "time" - at a moment on one of this character's animations
+| playsWhen | text | "always" (default) - there for the whole fight. "while" - for as long as the character has a status effect you name. "hit" - when this character's damage lands. "time" - at a moment on one of this character's animations
 | motion | text | "time" only, and required there. Which animation the moment is on - S1, S2, S3, Guard, Idle...
 | coin   | int  | "time" only. WHICH COIN of that motion, from 0. -1, the default, means every coin of it
 | time   | number | "time" only. Seconds from the start of that coin, the same clock a sound cue uses. Past 60 is read as a typo, moved back and reported
-| hitRepeat | text | "hit" only. "impact" (default) once per hit, "beat" once per damage beat
-| seconds | number | "hit" and "time". How long it stays up: above 0, capped at 30. Default 1. NOTHING ELSE EVER ENDS IT
+| hitRepeat | text | "impact" (the default) or "beat". On a "hit" entry: once per hit, or once per damage beat. On a "time" entry: follow the beat's hits, or play once
+| seconds | number | "hit" and "time". How long it stays up before Limbonia switches it off - a LIFETIME, not a speed: it does not make the effect play slower or stretch it out. Above 0, capped at 30. NOTHING ELSE EVER ENDS IT. **Leave it out and the effect is held until it has finished**, at whatever `speed` you set. Write one and it is a wall clock, so at half speed an effect needs twice the `seconds` to finish
 | scale  | number | a multiplier on the size the game would give it. Above 0, capped at 100. Default 1
+| speed  | number | how fast it plays, as a multiplier on its own rate. 0.5 is half speed, 2 is double. From 0.05 to 10, default 1. Not every effect answers - the picker says which. Does NOT change `seconds`
 | centred | bool | at the character's middle instead of at their feet. Default false. Alias centered
 | layer  | text | "default" (the character's effect pivot), "back" (its back pivot) or "skin" (drawn and masked with the character's own art)
+| whileEffect | text | "while" only, and required there. The status effect that holds it up, by name. NOT `effect` - that key means something else in a `vfx` entry
+| whileStacks | int | "while" only. How much of the status effect is needed. Floored at 1, which is the default and means "any at all"
+| playsOn | text | whose character it plays on: "self" (default, the character the entry belongs to) or "target" (the one being hit). Only with `"playsWhen": "hit"` or `"time"`
+| targetIndex | int | which of the units being hit, from 0. Default 0. Above the number being hit it is clamped to the last one and reported. Must name a character - unlike the `vfx` list, -1 is not accepted here
+| x, y | number | where on the character to put it, in units of the character's own HEIGHT. 1 = one character tall, y up, x their right. 0 (the default) is where the game puts it. Added to `centred` rather than replacing it
+| z | number | depth against the scenery, -20 to 20, default 0. Negative pulls it clear so nothing can cut into it; positive lets the background cut into it on purpose. It does not move the effect - see below
+| colour | text | what colour to play it in - a hex colour, `#ff4444`, `#f44`, or with an alpha as `#ff4444cc`. The `#` is optional. Spelled `color` too. Leave it out for the effect's own colour
+| borrowFrom | text | only for an effect that belongs to ANOTHER character. The character name the effect list prints beside it, such as `SD_Personality/10113_YiSang_DerSchutzeAppearance.prefab`. Leave it out for everything else, including an effect belonging to somebody already in the fight
+| row    | int  | WRITTEN BY THE EDITOR, not by you. Which line of the Animation Timing timeline the bar is drawn on. The game never reads it and it changes nothing about how the effect plays. Leave it out and the editor decides. `vfx` entries take it too
+| group  | text | WRITTEN BY THE EDITOR, not by you. The name of the fold this entry was put in, so several bars can be collapsed into one. The game never reads it. `vfx` entries and sound cues take it too
 | enabled | bool | false leaves it in the file and switches it off
 
 **This is the only way to put an effect on a character without shipping one.** You are not supplying art: you are
@@ -968,18 +1132,258 @@ with no Unity project, no `.bundle` and nothing on disk but mod.json. (It is not
 effect.)
 
 **You cannot guess a name, and you are not expected to.** The Animation Timing editor has a picker fed from the
-game's own catalogue - it works at the title screen and in the lobby, because the list the game searches first is
-static data. It opens on the whole list and scrolls, so it can be read through as well as searched, and
+game's own catalogue - it works at the title screen and in the lobby, and it is the whole catalogue there rather
+than a part of it. It opens on the whole list and scrolls, so it can be read through as well as searched, and
 **See what the game has** beside it fetches that list from the game and says how many there are. Beside the picker
 is a **Try it** button, which plays the effect on a character standing in a battle right now and saves nothing. The
 Mods panel lists what a mod already declares, as chips beside its always-on effects, but does not edit them.
+
+**Kinds of entry, and the picker marks which is which.** Most effects the game keeps in its own data and can
+make anywhere: any fight, any character, nothing prepared. A smaller number belong to a particular battle list -
+one piece of the game's content - and only play in fights that use that content. The picker says so on the entry.
+Pick one of those and press **Try it** in a fight that is not using it and Limbonia will fetch the list for you and
+tell you to press it again in a moment; if it still does nothing, that effect does not travel and the answer is to
+pick one the list marks as available anywhere. The same is true in play: a named effect that belongs to a battle
+list is fetched the first time your mod asks for it in a fight, and reported on your mod's card if it will not come.
+
+**The characters bring thousands more, and you can use those too.** The names above are the ones the game keeps
+in a shared list, and there are only a couple of hundred of them. Every character also carries their own effects -
+their auras, their glows, the flourishes their skills throw - and there are several thousand of those. They are in
+the same picker, marked with the character they belong to, and they are written into `label` exactly like any
+other name. Three things are true of them and of nothing else in this list:
+
+* **They play on the character they belong to with nothing else written down.** If the effect belongs to somebody
+  in the fight, just name it.
+* **To put one on a different character, add `borrowFrom`** with the character name the picker prints beside the
+  effect. Limbonia loads that character's artwork, copies the one effect onto yours, places it and draws it in the
+  right order, and destroys the copy when the fight ends or you remove the entry. Nothing about the character it
+  came from changes.
+* **The picker fills them in for you.** Pick a row and both halves are written down - the effect's name and, when
+  it belongs to somebody else, the character it came from.
+
+**Every character in the game is read once, in the background.** The first time you run Limbonia it works through
+the game's character list a few at a time - never blocking the game, never during a fight, and never downloading
+anything - and writes down which effects each one has. The picker fills in as it goes and says how far along it
+is. The answer is saved next to the game, so it happens **once**: every session after that the whole list is there
+from the first second. If the game is patched, Limbonia notices that its content changed and reads it again by
+itself - so the list can never go on offering effects that no longer exist.
+
+**A multi-hit beat plays the effect once per hit.** If the damage beat your effect sits on lands five times,
+the effect plays five times, spaced the way the game spaces the hits - so it reads as five hits rather than one
+effect sitting over five damage numbers. You do not write the count anywhere: it is read from the beat's own
+`multiHit` and `multiHitDuration`, so changing the beat changes the effect with it and the two can never disagree.
+
+A beat that hits once plays the effect once, which is what it always did. If you want a single play on a beat that
+hits several times, set `"hitRepeat": "beat"`.
+
+**You can play them on the character being hit.** Add `"playsOn": "target"` and the effect is built on whoever
+the coin reaches instead of on your own character - their pivots, their sorting, their size. `targetIndex` picks
+which one when an attack reaches several, counting from 0.
+
+This works with `"playsWhen": "hit"` and `"playsWhen": "time"`. A timed beat resolves the same character the blow
+will land on, so you can put an effect on the victim part-way through the swing rather than only at the moment of
+impact. It does **not** work with `"always"` or `"while"`: at those moments nothing is being hit, so there is no
+target - Limbonia says so on your mod's card when you save rather than playing it in the wrong place.
+
+If the moment arrives and nothing is being hit, the effect does not play and your mod's card says why. It is never
+quietly played on your own character instead.
+
+**Careful with `"layer": "skin"` on a target.** `skin` draws the effect masked with the character's own artwork -
+and on a target that means masked with *theirs*. Anything outside their silhouette is cut away, so a large effect
+borrowed onto a small enemy can be masked down to almost nothing. `skin` is also the one layer the game does not
+give its own drawing order to. If an effect on the target looks missing or clipped, try `"default"` first.
+
+**You can move them around the character.** `"x": 0.4, "y": 0.8` puts the effect up and to the right of them.
+The numbers are in **character heights**, not pixels and not Unity units - `1` is one character tall - so the same
+values land in the same place on a sinner and on a boss three times the size. `y` is up, `x` is their right, and
+`0` is wherever the game would have put it, so an entry that sets none behaves exactly as before. About `0.2` to
+`0.5` reaches a hand or a shoulder, `1` is over their head, and past `2` you are well clear of them.
+
+`z` is **depth against the scenery**, and it does not move the effect. The fight is drawn flat, so pushing an
+effect away cannot make it look further off - what it changes is whether the background **cuts into it**:
+
+* **Negative** pulls it toward you. Nothing in the scene can cut into it. Use this if an effect looks chopped.
+* **Zero** is normal.
+* **Positive** pushes it back, and the scenery starts cutting pieces out of it - more the further you go. That is
+  worth having on purpose: an effect rising out of the ground, or half-hidden behind something. It is also what is
+  happening if an effect looks chopped in half by accident.
+
+`z` is not how you put an effect behind the character. That is `layer`: `"back"`.
+
+If you set `centred` as well, the offset is measured from the character's middle instead of their feet - the two
+work together rather than one overriding the other.
+
+**Effects do not all start in the same place.** Most begin at the character's feet, so `y: 0.5` puts them at head
+height; some begin at the middle already, so the same `0.5` puts them half a body higher again. The offset always
+adds to wherever that effect starts, so the quickest way to find your bearings on an unfamiliar effect is to press
+**Try it** at `0,0` once and look.
+
+**To judge two things against each other, rehearse them.** **Try it** plays one effect once, which is the wrong
+tool for the only question that matters when you have several: do these two, 200 milliseconds apart, read as one
+blow or as two? By the time you have pressed the second button the first is over. So mark what you want to compare
+and Limbonia plays the whole set, on its real spacing, over and over, until you stop it.
+
+**Sounds are part of it.** Mark a sound beat and it joins the same loop on the same clock, so a sound marked 200
+milliseconds after an effect is heard 200 milliseconds after it is seen. That is the question most worth asking -
+whether the noise and the flash land together - and it is why sounds and effects rehearse as one set rather than as
+two things you start separately. A sound of your own or one of the game's works the same way.
+
+Four things about it are worth knowing:
+
+* **The earliest one is time zero.** If your effects sit at 3.2 and 3.4 seconds into a coin, the rehearsal plays
+  them straight away and 200 milliseconds apart. You are judging the gap, not the wait.
+* **A pass lasts as long as the set needs.** Limbonia works it out from the effects themselves - including the ones
+  with no length of their own, which run to their real end at whatever speed you set. You can ask for a longer loop
+  if you want a pause between passes; ask for a shorter one than the set takes and it is lengthened and you are
+  told why, because a loop that restarts an effect still on screen hides the very thing you are looking at.
+* **A looping game sound cannot be rehearsed.** It is refused when you mark it, with the reason, rather than
+  starting something the loop could never switch off. Everything else plays to its own end and needs nothing;
+  laps are made long enough that a sound never restarts on top of itself.
+* **It stops by itself, and it goes quiet as well as still.** Closing the editor, leaving the battle, saving a
+  change to those effects, the character going down, or ten minutes of silence all end it - and anything it was
+  playing is silenced with it. Pressing **Try it** on one of the effects takes that one out of
+  the set and plays it on its own, because that button has always meant "this one, once, now".
+
+**Limbonia knows how long each effect runs, and tells you.** This is the number nothing else could give you: an
+effect plays, and there is no way to see when it *ended*. Beside every entry that plays on a hit or at a moment,
+the editor says how long that effect takes to finish **at the speed you set** - so `seconds` stops being a guess.
+Press **Try it** and the answer comes back in the sentence under the button as well.
+
+**Leave `seconds` out and it is held until it is done.** This is the default for a new entry and it is what most
+entries want:
+
+```json
+{ "label": "FX_Fire_Burst", "playsWhen": "hit", "speed": 0.4 }
+```
+
+That plays the effect at four tenths speed and holds it for as long as it needs, which is two and a half times its
+normal run. You do not work that out and you do not write it down. Change the speed and the length follows.
+
+**Three answers, and they are not the same.** What the editor can say about an effect's length depends on the
+effect:
+
+* **a number** - it finishes, and that is how long it takes. Most effects.
+* **it loops** - it never finishes. About one in five. There is no length to run to, so `seconds` is the only thing
+  that will ever take it off; leave it out and you get one second. The editor says so on the entry, and so does
+  your mod's card when you save.
+* **not read yet** - nobody has measured it. Every one of the game's shared names is in this state until the first
+  time you play it, because the copy the game makes does not exist until then. Press **Try it** once and it is
+  measured. This is *not* the same as "it loops", and the editor never shows one as the other.
+
+**Your mod's card tells you if a length cuts an effect off.** If you wrote a `seconds` that stops the effect well
+before it is finished, the card says so when you save, with both numbers. It only speaks when the effect is
+*visibly* cut - a tenth of a second short is not worth a sentence, and a problems list that cries wolf is one
+nobody reads.
+
+**Thirty seconds is the ceiling, even for a computed length.** If an effect slowed right down would take longer
+than that to finish, it is switched off at thirty and your mod's card says why. That cap is what makes it
+impossible for a coin cut short to leave something burning for the rest of the fight, and a number Limbonia worked
+out for you does not get to be the thing that breaches it.
+
+**You can colour them.** Add `"colour": "#44aaff"` to an entry and the effect plays in that colour. These effects
+are drawn as a shape multiplied by a colour, which is how the game colours them in the first place, so an effect
+drawn in grey becomes exactly the colour you ask for.
+
+**Not every effect will change colour, and the list tells you which.** Some have their colour painted into the
+artwork, or shift colour as they play. Those take your colour as a *shading* of what they already were - asking
+for red on an orange flame gives a deeper orange, not red. And a few have nothing on them that takes a colour at
+all. Beside every effect the picker says which of the three it is:
+
+* **takes a colour** - it will play in the colour you ask for.
+* **colour shades it** - it has a colour of its own and yours tints it.
+* **no colour** - there is nothing on it to colour.
+* **colour not known yet** - the background read has not reached it. It is not a "no"; ask again once the list has
+  finished filling in, or just try it.
+
+The marking is worked out for the effects that belong to characters. For the game's shared names - the couple of
+hundred with plain names - it cannot be known in advance, so the list says **try it**: they do take a colour, and
+whether it lands as a repaint or a shading is a matter of looking.
+
+**You can play them faster or slower.** Add `"speed": 0.4` and the effect runs at four tenths of the rate it was
+made to run at; `2` runs it at double. `1`, the default, is untouched. It sits beside `scale` and reads the same
+way: one multiplies how big the effect is, the other how fast it is.
+
+**`speed` and `seconds` are different things and they do not adjust for each other.** `seconds` is how long
+Limbonia leaves the effect switched on, and it is measured on a wall clock whatever the speed is. So an effect at
+half speed needs **twice** the `seconds` you would have written at full speed. This is deliberate: each key means
+one thing, and rescaling a number you wrote would be a surprise for anybody who set both on purpose.
+
+**The way to avoid that arithmetic is not to do it: leave `seconds` out.** Then Limbonia reads how long the effect
+actually takes, divides by the speed you set, and holds it exactly that long. Nothing you wrote is reinterpreted -
+there was nothing there to reinterpret. That is the recommended way to write a slowed effect, and it keeps working
+if you change the speed later.
+
+**Not every effect can be slowed down, and the list says which.** An effect answers to `speed` if it is made of
+particles or is driven by an animation - which is most of them, and is why the picker does not repeat it on every
+row. What it *does* mark is the exception: a character's effect that is neither shows **cannot be slowed**, and a
+`speed` on that one does nothing. The entry's own Speed control says the whole answer for the effect you picked,
+including "not looked at yet" when the background read has not reached it - which is not a "no".
+
+The game's shared names - the couple of hundred with plain names - are not read in advance, so they always say not
+looked at yet. Nearly all of them are particle effects and answer perfectly well; try one and see.
+
+**On a character's OWN effect the game can take the speed back.** Every effect a character was built with is held
+by the game's own speed control, which it drives for hit-stops, duel markers and deaths - and each of those writes
+every one of those effects back to the game's speed, not to yours. So a slow effect on your own character may
+snap back to normal when the fight does one of those things. **A borrowed effect is not affected**: it was made
+after the character was built, so nothing but your entry ever touches its speed. If a slow-motion moment has to
+hold through a hit-stop, borrow the effect rather than naming your own character's.
+
+**Colour works on every effect you can play** - a character's own, a borrowed one, and the game's shared names
+alike. The game gives each character its own copy of an effect rather than passing one object around, so your
+colour only ever lands on the copy your character is wearing; nobody else's looks different, and the effect goes
+back to its own colour the moment your entry stops.
+
+**Borrowing needs that character's artwork already on your machine.** Limbonia will not start a download because a
+mod file mentioned a name, and the background read skips characters whose art has never been downloaded - so they
+are simply not in the list. If you name one anyway you get a sentence saying so on your mod's card; play one fight
+the character appears in and it will be.
+
+**Browse as many characters as you like.** A character's artwork is held only while something is actually using
+it - an effect standing on somebody, an entry that will borrow it again, or the one you are listening to right
+now. The moment nothing is, it is given back, so trying twenty characters in a row costs twenty brief loads rather
+than twenty held at once. Everything borrowed is given back when the fight ends regardless. There is still a
+ceiling on how many can be held *at the same time* - thirty - but reaching it means thirty characters' effects
+genuinely in use at once, not thirty you happened to look at.
+
+**Effects the game drives from a status effect are named by NUMBER.** A few of the shared effects are the ones the
+game raises for its own status effects, and those carry no name at all - the game addresses them by the status
+effect's number. The picker shows them with the effect they play and gives you the number to write in `label`, so
+a `label` that is all digits is one of these. They behave like any other entry in every other way.
+
+**What is still NOT in this list.** Characters whose artwork has never been downloaded to your machine are not
+read, so their effects are not offered - playing one fight they appear in fixes that permanently. And the exact
+FRAME the game fires one of its own flourishes on is still the game's: you can play an effect at a moment you
+choose with `"playsWhen": "time"`, but you cannot ask for "whenever the game would have played this one".
+
+**Two keys in your file are not yours: `row` and `group`.** The Animation Timing editor lets you drag a bar onto
+whichever line of the timeline you want, and fold several bars into one you can open - and it remembers both by
+writing them into the entry. That is the whole of what they mean. They say nothing about when anything plays, what
+it plays on, or in what order anything happens, and Limbonia throws them away as soon as it has read them - the
+game never sees either. `row` appears on `gameEffects` and `vfx` entries. `group` appears on **everything you can
+place on the timeline** - effects, the character's own effects, sounds, speech bubbles, cut-ins, camera shakes,
+zooms, turns, movements, picture changes, form changes and hits. A folded hit still shows where it lands: the
+group's own bar carries a mark at the moment damage arrives, so the thing every other beat is timed against stays
+visible even while the fold is shut.
+
+**Folding a hit is the one fold with a consequence.** Everything else you can put in a group is presentation - it
+decides what is seen and heard, not what happens. A hit is not: it is when damage actually lands. So moving a fold
+that contains one moves the hit with it, and the attack really does connect at a different moment. That is usually
+exactly what you want when you fold a whole attack and slide it, but it is worth knowing before you do it.
+
+**A fold's name belongs to its coin.** "Flurry" on S2 coin 1 and "Flurry" on S3 are two different folds and never
+merge, however alike the names look. Names are not global, and the editor is what keeps them apart - Limbonia does
+not check it and does not need to.
+
+If you have never dragged or folded a bar you will never see either key, and deleting them all by hand does nothing
+worse than letting the editor lay everything out unfolded again.
 
 **Why this is not a `vfx` entry with a third source.** A `vfx` entry lives inside an `assets` declaration, so it
 needs a `TimelineAsset` in a bundle before you may even name an effect - which is exactly the dependency this
 removes. And every knob a `vfx` entry has belongs to machinery this does not use: `duration`, `once`,
 `hide` and `activeTime` describe a clip on an animation of yours; `x`, `y`, `z`, `disableAfter`, `sortingOffset`,
 `playsOn` and `targetIndex` describe a prefab of yours that Limbonia drives. Here the game owns everything. Writing
-any of those keys on a `gameEffects` entry is REPORTED and ignored rather than silently accepted. A `time` is the
+any of those keys on a `gameEffects` entry is REPORTED and ignored rather than silently accepted. Note that `effect` is on that list: in a `vfx` entry it means one of the character's OWN visual effects, and it is not how you name a status effect here - that key is `whileEffect`. A `time` is the
 one thing both lists want, and it is not on that list -- but here it is written with the animation and coin beside
 it, because this entry does not sit on a coin's declaration the way a `vfx` entry does. That is the next part.
 
@@ -1005,6 +1409,46 @@ character. Naming the same label twice in the SAME place is two switches fightin
 is dropped and you are told. Naming it at DIFFERENT moments is fine and is the ordinary thing to write across a
 multi-coin skill -- asking again for an effect that is already standing re-triggers it, which is what a second
 placement means.
+
+**An effect that follows a status effect.** `"playsWhen": "while"` keeps the effect up for exactly as long as
+the character has the status effect named in `whileEffect`, and takes it off again when they lose it. Nothing
+else is needed: no moment, no length, no animation and no bundle. *While Ishmael is Bleeding, she smoulders* is
+one entry.
+
+```json
+"gameEffects": [
+  { "label": "EFFECT_BLOOD", "playsWhen": "while", "whileEffect": "Laceration" },
+  { "label": "EFFECT_FIRE", "playsWhen": "while", "whileEffect": "Burn", "whileStacks": 5 }
+]
+```
+
+`whileEffect` is a status effect by name - the game's own name for it, or one your own mod adds. Capitals and
+spaces do not matter; the spelling does. `whileStacks` is how much of it is needed before the effect appears,
+and leaving it out means "as soon as they have any at all". An entry set to `"while"` that does not name an
+effect is refused by name and dropped, for the same reason a bad `"time"` entry is: an aura you meant to
+follow Bleed, silently glowing all fight, is worse than one that does not appear and says why.
+
+**It is checked, not announced, and that is what makes it right.** Limbonia asks twice a second whether the
+character has the effect right now, rather than watching for the moment it is applied. That sounds like the
+long way round and is the only one that works: a round is worked out in one burst the instant you confirm it and
+then played back over the next half-minute, so "the moment Bleed was applied" happens up to half a minute before
+the blow you are watching. Asking about the state instead means the effect is right at every instant by
+construction - and it comes off correctly however the status effect leaves, whether it ran out, was cleansed,
+was despelled, or the wave ended. What you give up is precision finer than about half a second on the switch,
+which on something that stays up is not something anybody can see.
+
+**`seconds` does nothing on one of these**, and you are told if you write one. It ends when the status effect
+does, and by no other route.
+
+**Naming a status effect the game has never heard of** is reported against the mod once, the first time the
+check runs, rather than every half-second. Until the game has finished reading its own effect list - a few
+seconds after launch - a name that has not resolved yet is left alone rather than reported, so an early miss is
+never mistaken for your spelling.
+
+**`seconds` is a lifetime, not a speed.** It says how long the effect is left on screen before Limbonia switches
+it off. It does not slow the effect down or stretch it out - the effect plays at its own rate the whole time, and
+`seconds` only decides when it stops. A short-lived effect with a long `seconds` finishes and sits there; a long
+one with a short `seconds` is cut off part way.
 
 **What ends it, and why `seconds` is not on the animation's clock.** A `"hit"` or `"time"` effect is switched off
 `seconds` after the moment that started it - and if Limbonia did not do that, nothing would, because the game's
