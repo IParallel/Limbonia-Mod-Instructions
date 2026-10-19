@@ -1369,6 +1369,257 @@ defensive *action* happens at all. One English word, two decisions.
 
 ---
 
+## What a blow is made of, and what it is weak to
+
+Every skill carries two labels: **a sin** -- Wrath, Lust, Sloth, Gluttony, Gloom, Pride or Envy -- and **a kind of
+blow**, Slash, Pierce or Blunt. Facing them is a character's **affinities**: a figure for each kind of blow, and,
+on the things a team fights, a figure for each sin as well. The two labels decide which of the target's figures
+the blow is weighed against, which is why they are in one section.
+
+**This is not `e.damageSource`.** That one says whether damage came from a blow, an effect ticking, a passive and
+so on -- see [Which kind of damage this is](#which-kind-of-damage-this-is). This one says whether a blow cuts,
+stabs or bludgeons. Two English phrases that sound alike and answer nothing in common.
+
+```lua
+on(TIMING.ON_END_ATTACK, function(e)
+	if e.skill then
+		local sin  = e.unit:skillSin(e.skill.id)         -- "Gloom"
+		local kind = e.unit:skillAttackType(e.skill.id)  -- "Pierce"
+		log("that one struck with", sin, "and it was a", kind)
+	end
+end)
+```
+
+Both take **a skill's own number** -- its id -- and answer with the word the game prints. Two more words exist
+that are not sins at all, **Madness** and **Angst**, which is what a ruined E.G.O. strikes with; they turn up
+here like any other answer.
+
+**Do not pass a 1, 2 or 3 here.** That number is a *tier* -- the one the game prints on the card -- and a tier is
+not a skill: a character can carry two skills at tier 2, three at tier 1, whatever the identity was built with,
+so a tier names a **list** of skills rather than one -- see [Naming a skill](#naming-a-skill). `e.skill.id`
+inside a handler is the easiest real id to get hold of. Away from a handler, `skillsByTier` hands the list back
+and you index into it:
+
+```lua
+local seconds = e.unit:skillsByTier(2)   -- a LIST, because there may be more than one
+for _, id in ipairs(seconds) do
+	log(id, e.unit:skillSin(id), e.unit:skillAttackType(id))
+end
+```
+
+### Changing a skill's labels
+
+```lua
+on(TIMING.ON_START_ROUND, function(e)
+	-- Every skill this character has at tier 1 -- a list, because there may be more than one of them.
+	for _, id in ipairs(e.unit:skillsByTier(1)) do
+		e.unit:setSkillSin(id, "Gloom")
+		e.unit:setSkillAttackType(id, "Pierce")
+	end
+end)
+```
+
+Note what goes into those two calls: **`id`, a skill's own number, taken out of the list `skillsByTier` handed
+back.** Writing `setSkillSin(1, "Gloom")` asks for the skill numbered 1, which is nobody's skill, and comes back
+with a sentence saying so.
+
+**`TIMING.ON_START_ROUND` is the moment for this.** It comes round before any of the round's skills are on the
+table, so a label written there is the label the coming round is fought with, and it comes round again every
+round, which is how a change is kept up. `TIMING.ON_ADD_UNIT` and `TIMING.ON_BATTLE_START` are earlier still and
+work the same way.
+
+**From inside a round the change reaches the round after it.** A character keeps a master copy of each of its
+skills, and the fight takes a copy of one at the instant that skill is aimed at somebody. So the skills already
+on the table keep the labels they were given, and everything the character puts down afterwards carries the new
+one. That is worth knowing before it surprises you rather than a reason to avoid it: *"from here on this character
+strikes with Gloom"* is written exactly that way, from whichever moment the story calls for.
+
+Words are matched the way a person types them. Capitals, spaces and full stops are ignored, so the short spellings
+the game itself prints on a crowded card are accepted, and so are the game's own written forms -- `"Penetrate"`
+and `"Hit"` land beside `"Pierce"` and `"Blunt"`. Anything else is refused with a sentence listing what was
+expected, rather than one being picked for you.
+
+**Two things will overrule you, and both say so rather than going quiet.** Some skills decide their own sin
+through an effect; where that happens the effect wins and `setSkillSin` tells you instead of reporting a change
+the fight will not honour. And some skills change the kind of blow for a single coin as it lands -- that choice is
+made after this one, and it cannot be read or set from here.
+
+### Affinities
+
+```lua
+local figures = e.unit:affinities()
+
+log(figures["Pierce"])                  -- 1.0, or nil if it has no figure for Pierce
+
+for word, figure in pairs(figures) do
+	log(word, figure)                   -- "Slash" 1.0, "Gloom" 0.5, ...
+end
+
+e.unit:setAffinity("Slash", 0.5)        -- barely troubled by Slash
+e.unit:setAffinity("Gloom", 2)          -- and badly hurt by Gloom
+```
+
+**`affinities()` hands back a table keyed by the word**, not a list, so `figures["Pierce"]` is the question and
+`pairs` walks the lot for a character whose figures you do not know in advance. Note `pairs`, not `ipairs` -- there
+are no numbered entries to walk. **An empty table is a real answer**, so check for the word you want rather than
+treating empty as a failure.
+
+One name covers both families, because no sin shares a name with a kind of blow. The figure is how much of that
+damage gets through: **1 is ordinary, 2 is what the game uses for the damage a thing is weakest to, 0.5 for damage
+that barely troubles it, and 0 is the lowest it ever writes down.** Fractions are the point of it, so 0.75 and
+1.25 are ordinary things to write. The fight keeps the figure it finally uses inside its own limits, so a very
+large number is not damage without end.
+
+**Affinities apply straight away**, unlike the labels above. The fight reads them as each blow is worked out, so a
+figure set at the start of a round covers that round, and one set partway through a burst covers every blow still
+to come.
+
+**A character can only be given an affinity it already has.** This catches everybody once: **sinners carry figures
+for kinds of blow but none at all for sins**, so `setAffinity("Gloom", 2)` on one of your own characters is
+refused with a sentence rather than quietly doing nothing. `affinities()` lists exactly the ones a character has a
+figure for, so read it first if you are not sure. And a character wearing an E.G.O. that brings its own sin
+figures has its sin affinities rebuilt from that E.G.O.; figures for kinds of blow are left alone.
+
+### The editor does the other half of this
+
+The companion's **Skill Editor** carries Sin and Attack type under Base power, and its **Unit Editor** carries
+both families of affinity. Those are edits to the skill or the character *itself* -- they reach every fight, they
+last across restarts, and when what you mean is "this skill is a Pierce skill", that is the right tool and a
+script has nothing to add.
+
+What a script is for is the thing the editor cannot say: **"Blunt, but only while it is staggered"**, or "weak to
+Gloom for one round". Same distinction as the stats below, and for the same reason.
+
+---
+
+## A side's sins
+
+Two things share a word in ordinary speech and share nothing else, so it is worth separating them before anything
+else on this page makes sense.
+
+**Resources are a store.** Seven counters, one per sin, belonging to a **side** rather than to anybody standing on
+it. Sins are earned into it as skills are used and paid out of it when somebody uses an E.G.O. It is the row of
+numbers along the bottom of the screen.
+
+**Resonance is a count of the round being put together.** How many of the skills this side has laid on the table
+carry each sin. It is not stored anywhere — it is counted off the table whenever anything asks.
+
+One of them can be changed and the other cannot, and the reason is that difference.
+
+```lua
+on(TIMING.ON_START_ROUND, function(e)
+	local held = e.unit:sinResources()
+
+	log(held["Gloom"])                       -- how much Gloom this side is holding
+
+	for sin, count in pairs(held) do
+		log(sin, count)                      -- "Wrath" 0, "Lust" 3, ...
+	end
+
+	if held["Gloom"] < 3 then
+		e.unit:setSinResource("Gloom", 3)    -- top it up to three
+	end
+end)
+```
+
+### They are the side's, not the character's
+
+All three of these names are asked of a character, and none of them is about that character. **The character names
+a side and nothing more**, so every character on a side hands back the same table and it does not matter which of
+them you say it to. That is the same arrangement `passives()` uses for a support passive, and for the same reason:
+a character is the only thing a script is ever holding.
+
+Ask an **enemy** and you get what the enemies are holding. `setSinResource` on an enemy changes what the enemies
+can afford — which is a real thing to want, and the only way to say it.
+
+### `setSinResource` sets, it does not add
+
+`setSinResource("Gloom", 5)` leaves the side holding **five**, whether it had one before or nine. It is the figure
+to end up with. If adding is what you meant, read the count first and add to it yourself:
+
+```lua
+local held = e.unit:sinResources()
+e.unit:setSinResource("Gloom", held["Gloom"] + 2)
+```
+
+**All seven keys are always there**, including the ones reading `0`, so there is no missing key to guard against —
+`held["Gloom"] + 2` is safe on a side that has never earned a Gloom. Note `pairs`, not `ipairs`: it is a table
+keyed by the word, not a list, so `#` on it means nothing.
+
+`0` is a real instruction and empties that counter. A **negative** is refused with a sentence rather than quietly
+read as zero — it is almost always arithmetic that came out wrong. `"Madness"` and `"Angst"` are refused by name
+too: a skill really can strike with either, and a side banks neither, so there is no counter there to set.
+
+**What comes back is what the side really holds afterwards**, read off the side rather than echoed. Two things can
+make it differ from what you asked for, and when they do a sentence comes back beside the number: the game keeps
+its own ceiling on these, and something on the field can forbid a side to earn sins at all.
+
+```lua
+local count, why = e.unit:setSinResource("Gloom", 5000)
+if why then log(why) end       -- ... left this side holding 999 rather than 5000 ...
+```
+
+### The change lands at once
+
+The fight reads these afresh every time it wants them, so from the instant one is written it is what decides
+whether an E.G.O. may be used, what one costs, and how hard the skills that scale off a hoarded sin hit.
+`TIMING.ON_START_ROUND` is the moment to reach for — it comes round before the player has laid a single skill
+down, and it comes round every round.
+
+**It is refused while the fight is still being set up** (`TIMING.ON_ADD_UNIT`). A side's sins are put in place
+after the last character has arrived, so a figure written there would be emptied a moment later and you would have
+been told it worked. `TIMING.ON_BATTLE_START` is the earliest moment that has them.
+
+**`TIMING.ON_HIT` is late rather than wrong.** A round is worked out in one burst the instant it is confirmed and
+replayed over the following half-minute, so nothing in the round on screen can count a change made there. It still
+lands and it still lasts — the next round has it, and so does the next E.G.O. you go to use — and a sentence comes
+back beside the number saying so. The number drawn on screen catches up at the start of the next round.
+
+### What survives what
+
+Worth knowing before you build a script around one of these.
+
+- A side's sins are **carried from one wave to the next** for the characters you play.
+- They are **thrown away at the end of a wave** for the other side.
+- In a **Mirror Dungeon** your own side's sins are carried from one **stage** to the next, so a figure set in one
+  fight is still there in the fight after it.
+- Nothing carries between unrelated fights.
+
+### Resonance can be read and not changed
+
+```lua
+on(TIMING.ON_START_TURN, function(e)
+	for sin, count in pairs(e.unit:sinResonance()) do
+		if count >= 3 then log(sin, "resonance of", count) end
+	end
+end)
+```
+
+**When you ask is the whole of it.** This counts the skills that are *down*, so `TIMING.ON_START_ROUND` is too
+early: the coming round's skills are not on the table yet, and what you read there belongs to the round before.
+Ask from a moment during the round — `TIMING.ON_START_TURN` and everything after it — and the counts are the ones
+the round is being fought with.
+
+**There is no name that changes it**, and that is a fact about the game rather than something still to come. The
+count is not stored anywhere: it is worked out from the skills on the table every time anything asks for it, that
+table is rebuilt at the start of every round, and it is amended again every single time the player adds, removes
+or re-aims a skill. Anything written into it would be gone before it was read, so a name for it would report
+success and change nothing — which is the one thing this whole surface refuses to do.
+
+**What you can change is what goes into it.** `setSkillSin` changes which sin a skill strikes with, and the count
+follows from that:
+
+```lua
+-- Push this character's first skills onto Gloom, and the side's Gloom resonance rises with them.
+on(TIMING.ON_START_ROUND, function(e)
+	for _, id in ipairs(e.unit:skillsByTier(1)) do
+		e.unit:setSkillSin(id, "Gloom")
+	end
+end)
+```
+
+---
+
 ## Stats, and why they are decisions rather than settings
 
 The companion's **Unit Editor** can force a character's stats outright — its defence, its maximum health — and when
@@ -1605,6 +1856,138 @@ the game's own effects.
 
 ---
 
+## Setting an effect off
+
+`addBuff` and its family change *how much* of an effect a character is carrying. This is the other thing: making an
+effect **pay out now**, out of the turn it would normally have waited for.
+
+There are three names, because the game does this three different ways, and what each one leaves behind is
+different.
+
+```lua
+-- a skill that makes its target's Bleed go off as well as hitting it
+on(TIMING.BEFORE_GIVE_ATTACK, function(e)
+	if e.victim and e.victim:buffStacks("Laceration") > 0 then
+		local took = e.victim:triggerEffect("Laceration")
+		if took then log("the bleed took", took, "health") end
+	end
+end)
+```
+
+### `character:triggerEffect(effect)` — make it pay out
+
+**Only four effects can be set off: Bleed, Rupture, Burn and Curse.** Those four pay out at a moment and so have
+something to fire. Everything else in the game changes what a number is worth instead — Haste does not "go off", it
+makes a die bigger — and there is nothing to set off. Naming one of the others comes back as nothing with a sentence
+saying so, rather than reporting success for doing nothing.
+
+Write the effect by the game's own name, and **watch the two that catch everybody**: Bleed is `Laceration`, and
+Rupture is `Burst`. So `triggerEffect("Burst")` sets off **Rupture**. It has nothing to do with Tremor Burst, which
+is a different mechanic with its own name below. The table in **Status effects** above is the same table for this.
+
+| On screen | Write this | What firing it does |
+|---|---|---|
+| Bleed | `Laceration` | Deals its damage |
+| Rupture | `Burst` | Deals its damage |
+| Burn | `Combustion` | Deals its damage |
+| Curse | `Curse` | Gives the character one of its random effects |
+
+It answers with **how much health it took off**. Curse answers `0`, because Curse hands out an effect rather than
+dealing damage — and `0` is still a yes here, since only *nothing at all* means it was refused.
+
+**It does not spend the effect.** The Potency and Count are exactly what they were afterwards, so a handler that
+fires Bleed every round fires the same Bleed every round, for full damage, indefinitely. That is not an oversight and
+it is not this being generous — it is what the game's own two effects that force an activation do. If you want firing
+to cost something, take it off yourself with `reduceBuff` afterwards, which works the same way for all four.
+
+**The character has to be carrying the effect already.** This sets off what is there; it does not put any on. If you
+want both, `addBuff` first.
+
+**Nobody is credited for the damage.** A script is not a character, so nothing that watches for *who* dealt the
+damage will fire on it.
+
+### `character:triggerTremorBurst()` — burst its Tremor
+
+Tremor is not in the list above, and that is not an oversight: bursting Tremor is a different mechanic and the game
+does it with a different call. So it gets its own name, which takes no arguments.
+
+```lua
+on(TIMING.BEFORE_GIVE_ATTACK, function(e)
+	if e.victim then e.victim:triggerTremorBurst() end
+end)
+```
+
+It answers with **how much stagger the burst put on**, and it is Tremor Burst exactly as the game does it: it goes
+through the character's own resistance to it, through anything either side has that makes bursts hit harder, and
+through the stagger check afterwards — so a big enough burst really does stagger.
+
+**It looks and sounds like the game's own**, because it is the same thing. A burst's sound, its effect and its
+number all come from a single record the fight replays afterwards, and this files that record exactly as the game's
+own skills do — so you get the cue, the effect and the figure, at the moment the fight draws them rather than the
+moment you asked.
+
+**It does not spend the Tremor.** The game's own skills that burst take the Count off themselves, separately, which
+is why a burst on its own leaves the Tremor sitting there. Use `reduceBuff` if that is what you want.
+
+The character has to have Tremor on it already, or you get nothing back and a sentence saying so.
+
+### `character:convertTremor(into)` — Amplitude Conversion
+
+Turns the Tremor a character is carrying into one of the game's other kinds of Tremor, **keeping its Potency and
+Count**. That is what makes it a conversion rather than a swap: the numbers carry over unchanged.
+
+```lua
+on(TIMING.ON_START_TURN, function(e)
+	e.unit:convertTremor("VibrationCollapse")   -- Tremor - Decay
+end)
+```
+
+| On screen | Write this |
+|---|---|
+| Tremor - Decay | `VibrationCollapse` |
+| Tremor - Fracture | `VibrationCrack` |
+| Tremor - Reverb | `VibrationEcho` |
+| Tremor - Everlasting | `VibrationContinue` |
+| Tremor - Chain | `VibrationChainPersonality` |
+| Tremor - Clockwinding | `VibrationSpring` |
+| Tremor - Hemorrhage | `VibrationBleeding` |
+
+It answers with **how much Tremor came out the other side**. It does not put any Tremor on — the character has to be
+carrying some already — and asking for the kind it is already carrying comes back as nothing with a sentence.
+
+It floats the new kind's own line as it lands, the same way applying an effect does, so you do not need `showBuff`
+for it.
+
+All three of these draw the way the game's own do. `triggerEffect` gets it for free — it goes *through* the effect's
+own machinery, which files the records itself — while the other two file theirs deliberately, because they reach the
+game one level below the place that would have done it.
+
+### When all three of these work, and when they refuse
+
+**They are refused from `TIMING.ON_HIT` and from `TIMING.ON_ADD_UNIT`**, and refused rather than merely discouraged.
+Use a moment the fight is still working out — `TIMING.ON_START_TURN` and `TIMING.BEFORE_GIVE_ATTACK` are the usual
+two.
+
+This is a harder line than the one on `addBuff`, and the reason is the difference between applying and firing. An
+effect applied at the wrong moment is at least still sitting on the character afterwards. An effect **fired** at the
+wrong moment has already paid itself out: the Count is gone, the damage landed where nothing on screen can show it,
+and the round that would have reacted to it has already finished reacting. There is no version of that you wanted,
+so you get nothing back and a sentence naming the moment to move to instead. See **The round is decided before you
+watch any of it**.
+
+`TIMING.ON_ADD_UNIT` is refused for its own reason: the fight has no round yet for an effect to go off in. Put the
+effect *on* there if you want the character to arrive carrying it — `addBuff` works at that moment — and set it off
+from a moment inside the round.
+
+**To set something off on an enemy, use `TIMING.ON_START_ROUND`.** Reaching any character other than the one the
+moment is about means taking one out of `e.allies` or `e.enemies`, and those two arrive only at
+`TIMING.ON_START_ROUND`, `TIMING.ON_BATTLE_START` and `TIMING.ON_END_BATTLE`. All three are fine for these three
+names. `TIMING.ON_START_TURN` carries no roster, so from there you can only reach `e.unit` itself — and a character
+is good for the moment it was handed to you and no longer, so you cannot pick an enemy up at one moment and use it
+at another.
+
+---
+
 ## Passives
 
 A passive is one of the standing abilities a character brings into a fight — the ones written on its page rather
@@ -1634,9 +2017,11 @@ whether a script has forced it (`forced`), which family it is in (`support`), wh
 before you write one.
 
 **`needs` is the requirement itself.** Each entry names a sin, how much of it is wanted, and which kind of
-requirement it is — `"resonance"` for how many of the chosen skills share that sin, `"affinity"` for how much of it
-the side has banked. A passive gated on nothing at all has an empty `needs`, which is a real answer, so check its
-length rather than treating empty as a failure:
+requirement it is — `"resonance"` for how many of the round's chosen skills share that sin, `"resources"` for how
+much of it the side has banked. **Those are the two names in [A side's sins](#a-sides-sins):**
+`sinResonance()` hands back the first figure and `sinResources()` the second, so a passive's requirement can be
+compared against what the side actually has. A passive gated on nothing at all has an empty `needs`, which is a
+real answer, so check its length rather than treating empty as a failure:
 
 ```lua
 for _, n in ipairs(p.needs) do
@@ -1948,6 +2333,208 @@ elseif now ~= 0 then log("did not take:", why) end
 ```
 
 ---
+
+## Chaining straight into another skill
+
+Everything above decides what a character will be *offered*. `useSkillNow` is a different idea: it makes a
+character act again, right now, in the middle of its turn. It is the thing chasers, counters, "additional attack",
+evade follow-ups and duel wins are all made of, and it is the same door the game uses for its own.
+
+```lua
+on(TIMING.ON_END_ATTACK, function(e)
+	local threes = e.unit:skillsByTier(3)
+	if #threes > 0 then e.unit:useSkillNow(threes[1]) end
+end)
+```
+
+**`TIMING.ON_END_ATTACK` is the moment this is for.** It comes round as an attack finishes, which is exactly where
+the game's own chained skills come from, and a skill chained there follows straight on from the one that just
+happened. It works from the other moments during a round too.
+
+**The skill has to be one the character owns — but owning is not the same as being offered.** A character can chain
+into a skill that is never in its pool and never drawn, which is where the interesting ones live: the second weapon
+a character switches to mid-attack is one of these. `skillsByTier` and `skillPool` are a floor, not the whole list.
+A number the character does not own at all comes back with a sentence saying so.
+
+### Aiming it
+
+Leave the target out and the fight aims the chained skill itself, which is what the game's own chasers do:
+
+```lua
+e.unit:useSkillNow(id)              -- the fight picks
+e.unit:useSkillNow(id, e.victim)    -- at whatever that character is doing this round
+```
+
+The target is aimed at the **action** that character is taking, not merely at the character — which is what puts
+the chained skill into a clash with it. A target with nothing going on this round is fine; the fight aims the skill
+itself instead.
+
+Not every moment carries a second character. `TIMING.ON_END_ATTACK` gives you `e.unit`, the character that just
+attacked, and no victim — so on that moment, leaving the target out is the ordinary way to write it.
+
+### Where it goes in the round
+
+```lua
+e.unit:useSkillNow(id)            -- "next": in front of everything left in the round
+e.unit:useSkillNow(id, "last")    -- behind everything left in the round
+```
+
+`"next"` is the default and is what a chaser looks like. You do not need a `nil` in the middle to skip the target:
+a word written where the target goes is read as the word, because a target is a character and a word is not one.
+
+### A chained skill chains again, and stopping it is yours
+
+**This is the one thing to know before you write one.** The skill you chain into is an ordinary skill: it finishes
+an attack, so a handler on `TIMING.ON_END_ATTACK` that chains will be called again by the skill it just chained,
+and again by that one.
+
+That is deliberately not stopped for you. "Three of these, then stop if the target is still standing" is a
+perfectly good mechanic, and nothing here should decide how many times your character gets to swing. So **count
+them yourself**:
+
+```lua
+-- A chained skill finishes an attack too, so this moment comes round again and
+-- the counter is the only thing that stops it. Three, then no more.
+local chained = 0
+
+on(TIMING.ON_START_ROUND, function(e) chained = 0 end)
+
+on(TIMING.ON_END_ATTACK, function(e)
+	if chained < 3 then
+		local threes = e.unit:skillsByTier(3)
+		if #threes > 0 and e.unit:useSkillNow(threes[1]) then
+			chained = chained + 1
+		end
+	end
+end)
+```
+
+Resetting on `TIMING.ON_START_ROUND` is what makes it three *per round* rather than three per fight.
+
+**A chain left to run away stops itself part-way through the round and says so.** There is a ceiling on how many
+skills may be chained in one round, sized so that no script written on purpose can reach it — if you meet it, a
+handler is chaining from a moment its own chain brings round again, and the sentence you get back says exactly
+that. It is a bug being caught, not a feature working, and chaining starts again the next round.
+
+### What comes back, and when it is refused
+
+`true` means the fight took the skill: it is a real extra turn, it rolls its coins, it does its damage, and it
+plays out on screen when the round is replayed. Otherwise you get nothing plus a sentence — read both with
+`local ok, why = e.unit:useSkillNow(id)`. The reasons it names are the real ones: the character does not carry that
+skill, it is no longer on the field, or something has taken its turn away from it.
+
+**Not from `TIMING.ON_HIT`.** A round is worked out in one burst the instant you confirm it and replayed over the
+next half-minute, and `ON_HIT` belongs to the replay — by the time you are watching a blow land, the round it
+belongs to has already been settled and there is nothing left in it to chain into. It is also refused at
+`TIMING.ON_ADD_UNIT`, where the fight is still assembling and no round has been worked out yet.
+
+---
+
+## Deciding what a character answers a blow with
+
+`useSkillNow` makes a character **act**. `useSkillDefenseNow` decides what it **answers with** when somebody swings
+at it — the guard, the dodge or the counter it puts up, including against a blow nothing is clashing with. They are
+two different things in the fight and two different names here.
+
+A chained skill goes into the list the round *plays*: it becomes a turn of that character's own, taken in turn
+order. An answer to a blow is not in that list at all. The fight keeps a separate file, one entry per character, of
+answers to look up **when somebody attacks that character** — and `useSkillDefenseNow` writes into that file.
+
+```lua
+-- Answer the blow being asked about, decided as it is being worked out.
+-- defenseAskedFor() says which kind this ask wants; another kind is not looked at.
+on(TIMING.ON_ASKED_TO_DEFEND, function(e)
+	local want = defenseAskedFor()
+	for _, d in ipairs(e.unit:defenseSkills()) do
+		if d.kind == want then
+			local ok, why = e.unit:useSkillDefenseNow(d.id)
+			if why then log(why) end   -- true still comes back; this says what to expect of it
+			return
+		end
+	end
+end)
+```
+
+`character:defenseSkills()` is where the numbers come from: the guard, dodge and counter that **character**
+carries, whether or not it has put one down this round. Each entry is a small table with `.id` — the number the
+verb takes — and `.kind`, one of `"guard"`, `"evade"` or `"counter"`. Most characters carry exactly one, so
+usually there is nothing to choose; some carry two, normally a guard and a dodge. The list comes back in the
+game's own order and is not sorted, so do not read anything into which is first.
+
+**Nothing happens when you call it.** It files the answer; the fight uses it the next time somebody swings at that
+character. If nobody attacks, nothing happens and nothing was wrong.
+
+**It goes in front of the character's own choice.** If the player had already put a guard down, the one you named
+is used first. The other is still there behind it.
+
+**One answer is used once.** The fight marks it spent after the blow it answers, so a character attacked three
+times in a round answers the first with yours and the rest with whatever else it has. Ask again to file another.
+
+**It lasts one round.** The file is made fresh at the start of every round, so nothing carries into the next one.
+That is the game's own doing, not a limit here — and it is why the example sits on `ON_START_ROUND`, which comes
+round every round.
+
+### The moment: answer the blow, or stand ready for the round
+
+There are two ways to use this and they are different ideas, not a better and a worse one.
+
+**`TIMING.ON_ASKED_TO_DEFEND` answers the blow being asked about.** It comes round at the instant the fight asks a
+character what it answers with, and the answer you file is read immediately afterwards — so it is used for *that*
+blow. Nothing is arranged in advance and nothing is guessed. `e.unit` is the character being asked, which is the
+one being **attacked**; `e.attacker` is who is swinging and `e.skill` is the skill they are swinging with.
+
+**`TIMING.ON_START_ROUND` files a standing answer for the whole round.** It comes round before anybody has acted
+and hands you each character in turn, so an answer filed there is in place for whatever the round brings. Use it
+when a character should always answer a certain way; use the ask when the answer depends on the blow.
+
+**Read `defenseAskedFor()` before you file at the ask.** The fight asks for one kind at a time — a guard, a dodge
+or a counter — and an answer of any other kind is not looked at for that ask. It is a plain name rather than
+something on `e`, and it answers only at that moment; anywhere else it refuses with a sentence saying nothing is
+being asked.
+
+**`ON_ASKED_TO_DEFEND` is frequent.** The fight asks once per target for a guard and once for a counter, and again
+for a dodge for every coin of every attack. Treat it like the damage moments: do one thing and stop, and do not
+walk the field in it.
+
+Every other moment works and covers less. An answer is only ever used by a blow that **has not been struck yet**,
+and the fight asks per coin — so one filed at `TIMING.ON_START_TURN` covers the blows after that character's turn
+begins and not the ones before, and one filed at `TIMING.ON_END_ATTACK` covers the attacks still to come and does
+nothing about the one that just finished. **If a character is being hit and does not answer, the usual reason is
+that the answer was filed after the blow it was meant for** — which is the whole reason the ask exists.
+
+**Not from `TIMING.ON_HIT`**, and it is refused there in words. `ON_HIT` belongs to the replay — a round is worked
+out in one burst when you confirm it and played back over the next half-minute, so by the time you are watching a
+blow land, every blow in that round has already been answered. It is also refused at `TIMING.ON_ADD_UNIT`, where
+the file has not been made yet and anything put there would be thrown away unread.
+
+### The fight looks for one kind of answer at a time
+
+A blow does not ask "has this character filed anything?". It asks for **a guard**, or **a counter**, or **a
+dodge**, at different points in working the blow out — and each of those asks sees only the filed answers **of
+that kind**. They are not interchangeable, so the kind you file decides which moment of a blow can use it.
+
+On top of that, answering a blow that **cannot be clashed with** — which is exactly what unopposed means — needs
+an answer that does not clash either. A dodge never clashes. A guard or a counter qualifies only if its own data
+says it cannot clash; one that *can* clash is used earlier instead, to pull an attacker into a clash before its
+turn begins.
+
+**So the verb tells you when you have filed one of those.** The call still answers `true`, because the answer is
+real and will be used — and it hands back a sentence beside it saying this one clashes. Read both:
+
+```lua
+local ok, why = e.unit:useSkillDefenseNow(id)
+if why then log(why) end
+```
+
+**The sentence can be there when the answer is `true`, and that is not a mistake.** So do not write
+`if not ok then log(why) end` here; write `if why then log(why) end` and you will catch both.
+
+A number that is not one of this character's defence skills is refused outright, and the sentence names the ones
+that are, with their kinds. An ordinary attacking skill is refused here on purpose: an attack is not an answer to a
+blow, and `useSkillNow` is what chains one of those.
+
+---
+
 
 ## Changing a character directly
 

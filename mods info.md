@@ -468,11 +468,22 @@ line has the character's number written into its own name, and a sword impact ha
 
 A sound used by several characters shows the first one and says how many others also use it.
 
-**Limbonia reads the game's sound banks once, in the background.** It works through them a few at a time whenever
-you are not in a fight - never during one - to learn which bank holds which sound. It costs a few seconds in total
-and the answer is saved next to the game, so it happens **once**: every session after that it is there from the
-first second. If the game is patched it notices and reads them again by itself. Until it has reached a particular
-bank, a sound from that bank says so and asks you to try again in a moment.
+**Limbonia reads the game's sound banks once, in the background, for anyone who has mods installed.** If you have
+no mods it skips this: reading the banks is only there to make the game's own sounds pickable, so somebody who is
+just playing never pays for it. If you are writing your **first** mod and want to pick from the game's sounds
+before you have anything installed, turn on **"Read the game's sounds and effects anyway"** on the Mods screen.
+The whole list of sound names is there either way - what the read adds is which bank holds each one, which is what
+exporting or auditioning a game sound needs.
+
+It works through them a few at a time once you are in the lobby - never during a fight, and never on the screens
+before it - to learn which bank holds which sound. It costs a few seconds in total and the answer is saved next to
+the game, so it happens **once**: every session after that it is there from the first second. If the game is
+patched it notices and reads them again by itself. Until it has reached a particular bank, a sound from that bank
+says so and asks you to try again in a moment.
+
+**On a launch where Limbonia holds the loading screen open** (see the effects section below) this read happens
+there instead, alongside the effects, and the line under the loading bar names both. So on the launch that does
+the preparing you never see the sounds being read at all - by the time you reach the lobby they are done.
 
 A bank that will not open on the first attempt is **tried again**, several times, spaced out - it is usually just
 the game still starting up. If one still refuses after all of that, Limbonia says so rather than pretending the
@@ -1161,12 +1172,54 @@ other name. Three things are true of them and of nothing else in this list:
 * **The picker fills them in for you.** Pick a row and both halves are written down - the effect's name and, when
   it belongs to somebody else, the character it came from.
 
-**Every character in the game is read once, in the background.** The first time you run Limbonia it works through
+**A moment can arrive before everything it needs is there, and Limbonia says so when it does.** An entry
+with `"playsWhen": "time"` has one instant to work in, and two things it may be waiting on at that instant:
+
+* **A borrowed effect needs the other character's artwork, and that is fetched fresh in every fight.** Limbonia
+  starts it the moment your character appears and it is normally ready long before you attack - but the very first
+  use of a borrowing skill in a battle can reach its moment first, particularly on the opening turn.
+* **`"playsOn": "target"` needs somebody being hit right then.** A moment placed before the attack has picked its
+  targets, or after the last one has gone, has nobody to play on.
+
+Limbonia waits a moment for either of these and plays the effect as soon as it can. If it still cannot, it gives
+that one moment up and writes a line on your mod's card in the Mods panel saying which of the two it was - and the
+next use of the skill starts again from nothing. **So an effect that appears on most uses of a skill and not on
+one of them is this, not your placement**, and the card names it rather than leaving you to watch for it.
+
+**Every character in the game is read once, in the background, for anyone who has mods installed.** With no mods
+installed Limbonia skips it - it takes a few minutes and exists only to fill this picker, so a session that is
+never going to open it does not pay for it. Writing your first mod and want the list before you have anything
+installed? Turn on **"Read the game's sounds and effects anyway"** on the Mods screen.
+
+The first time you run Limbonia it works through
 the game's character list a few at a time - never blocking the game, never during a fight, and never downloading
 anything - and writes down which effects each one has. The picker fills in as it goes and says how far along it
 is. The answer is saved next to the game, so it happens **once**: every session after that the whole list is there
 from the first second. If the game is patched, Limbonia notices that its content changed and reads it again by
 itself - so the list can never go on offering effects that no longer exist.
+
+**That read is got over with in one go rather than while you play, and this is what happens by default.** The moment
+you reach the lobby - before either read has started - Limbonia takes the game to its own loading screen and holds
+it there, with the loading bar and the line under it showing how far it has got. **It covers the sounds as well as
+the effects**, so everything Limbonia has to prepare happens on that one screen and none of it happens around you
+afterwards. When it is done the game carries on into the lobby by itself - there is nothing to press.
+
+It happens **once per version of the game**. Both answers are saved next to the game, so an ordinary launch goes
+straight to the lobby as normal and the screen does not appear. It takes several minutes the first time, nearly all
+of it the character list.
+
+**After the game updates, it happens again.** Limbonia notices that the game's content changed - so the picker can
+never go on offering effects that no longer exist - and reads what the update invalidated on the same screen, before
+you play, for the same reason it did the first time. There is nothing to do about it and nothing to press.
+
+It only ever does this for someone the read is running for at all, so if you have no mods installed and have not
+turned the read on yourself, you will never see it. And it checks before it opens anything: if both answers are
+already saved, the screen never appears at all.
+
+**You can turn it off** with **"Finish preparing before I play, on the next launch"** on the Mods screen, next to
+the switch above. With it off the read happens in the background in the lobby instead, a little at a time, and the
+picker fills in as it goes - which is the better choice if you would rather start writing immediately and let the
+list catch up around you.
 
 **A multi-hit beat plays the effect once per hit.** If the damage beat your effect sits on lands five times,
 the effect plays five times, spaced the way the game spaces the hits - so it reads as five hits rather than one
@@ -1843,6 +1896,45 @@ sentences in different tables: `desc` is the box on the effect's icon during a f
 looks at -- and `keywordDesc` is the general rule in the keyword glossary. Set one and not the other and the missing
 one reads "Unknown" or the game's placeholder, with everything else looking perfect. You are warned either way round.
 `name` is the one key both places want, so it is written to both for you.
+
+**Writing your own effect into skill text: you may use its name, and the number always works.** `[Bleed]` in a
+skill's description draws Bleed's symbol and its name in Bleed's colour, and your own effect can be written the same
+way -- `[emberdebt]`, the name you gave it under `buff`. Limbonia turns that into the number the game files your
+effect under before the text is drawn, so what appears is your symbol, your `name` and your colour, exactly as a
+vanilla effect appears. The number itself -- `[9000001]`, shown beside your effect in the companion -- is always
+accepted too, and it is what the Skill Editor's tag list inserts.
+
+Two things to know. If your effect has no `name`, there is nothing for the game to draw and the bracket reads
+"Unknown"; that is the key to check first. And if you gave your effect a name the game already uses for one of its
+own -- `"buff": "Laceration"` on a `new` effect -- then the bracket keeps meaning the game's effect, because
+rewriting it would change the game's own text as well as yours. You are told when that happens, and the number still
+works.
+
+**The little symbol inside skill text is your own picture too, as long as you gave the effect one.** Give the
+effect an `icon` that is a file your mod ships and that picture is used everywhere: the status bar, the tooltip
+header, the line that floats up when the effect lands, and the small symbol drawn inside a sentence. The last of
+those works differently under the hood -- the game draws it from a shared sheet of symbols rather than asking for a
+picture -- so Limbonia builds your effect a sheet of its own and hands it to the game. It takes a moment after the
+game finishes loading, and until it is ready the effect shows its `basedOn` symbol rather than a blank.
+
+**Leave `icon` out and the symbol is the `basedOn` effect's, in text and everywhere else.** That is the reliable
+answer and needs no file: an effect based on Bleed simply looks like Bleed. `"icon": "<a picture name>"` -- a name
+rather than a file -- steers it the same way, so `"icon": "Combustion"` gives your effect Burn's picture on the bar
+and Burn's symbol in text.
+
+If the picture itself cannot be read -- a file that is not really an image is the case to check -- that one effect
+falls back to its `basedOn` symbol inside sentences and keeps whatever the file gave it everywhere else. It is named
+in the log, it does not affect your other effects, and nothing is ever left blank.
+
+**Clicking an effect's name in skill text opens the game's glossary entry for it, and that entry is written from
+`name` and `keywordDesc`.** Set both: `name` is the heading, `keywordDesc` is the sentence under it. An entry with
+neither reads "Unknown", which is the one case worth checking if you see that word.
+
+**The colour of an effect's name in skill text comes from its `type`, not from the effect itself.** The game gives
+every good effect one colour, every bad effect another and every neutral one a third, and it uses them everywhere an
+effect is named -- so a new effect takes the colour of the `type` it declares. There is no per-effect colour: two
+negative effects are the same colour as each other by design, and changing `type` to get a different one also
+changes how the effect behaves (see `type` above), so it is not a way to recolour something.
 
 **`icon` is one key that takes two different things, told apart by the file extension.** Ending in .png/.jpg/.jpeg
 means a picture your mod ships, relative to its folder, 128x128 -- and that one line is the whole declaration, no

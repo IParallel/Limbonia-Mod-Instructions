@@ -9,15 +9,14 @@ cut-ins, the status effects. A mod can also carry a Lua script, which is how it
 
 ## better for you to visit **[Limbonia Docs](https://limbonia.ibello.cc/docs)**
 
----
-
 ## What is here
-
 | | |
 |---|---|
 | **[mods info.md](mods%20info.md)** | Every `mod.json` field. Who the mod replaces, art, names, skills, voices, sound, animations and their gameplay beats, camera, movement, visual effects, cut-ins, forms, custom status effects. It is the whole reference — start there and stay there. |
 | **[scripts info.md](scripts%20info.md)** | The guide to writing a mod's Lua script: the four ways to register a handler and what each one's answer means, which character a handler is about, coins, criticals, SP, status effects, which skills a character gets offered, and the traps that produce a script which loads cleanly and does nothing. Read it after `mods info.md`. |
 | **[LimboniaModTemplate.zip](LimboniaModTemplate.zip)** | The Unity project that builds an animation bundle and writes `mod.json` for you. You need it only if your mod ships drawings, animations or effect prefabs of its own; its own README is inside. |
+| **[LimbusExtract.zip](LimbusExtract.zip)** | The extraction tool for Sprites and Spine project creation. |
+|**[WIN_SP_V3.8_AP_ZNT.7z](WIN_SP_V3.8_AP_ZNT.7z)**| The spine tool ready for you to install. |
 
 `mods info.md` follows one shape throughout: a heading per block, a real example you can
 copy, a table of every field with its type, and a paragraph wherever a field does
