@@ -1114,7 +1114,7 @@ follow. So if what you mean is "hurt the boss", aim at the boss: `e.victim.whole
 ## Coins
 
 An attack is a run of coin flips, and the coin moments fire once per flip. `e.coin` is **the coin itself** — an
-object with four names on it, the same way `e.skill` is an object rather than a skill number:
+object with fields on it, the same way `e.skill` is an object rather than a skill number:
 
 | | |
 |---|---|
@@ -1122,6 +1122,8 @@ object with four names on it, the same way `e.skill` is an object rather than a 
 | `e.coin.result` | How it came down: `"heads"` or `"tails"`, in those spellings. |
 | `e.coin.power` | What the skill's Power stands at with this coin counted in. |
 | `e.coin.reflipped` | Whether this flip is an extra one rather than the coin's first. |
+| `e.coin.total` | Total original-index coin slots in the action's runtime skill, including destroyed coins. Extra flips do not add slots. |
+| `e.coin.powers[index]` | Stored power of the coin at this zero-based index; `[0]` is the first coin. |
 
 ```lua
 on(TIMING.BEFORE_GIVE_ATTACK, function(e)
@@ -1143,6 +1145,24 @@ accidentally correct is one the next reader has to re-derive. `e.powerBonus` fur
 **`power` is a running total, not what the coin was worth.** It is the number a player watches climb as the coins
 land. A coin's own contribution is this number minus the previous coin's, and nothing hands you that difference —
 if you want it, remember the last one you saw.
+
+**`powers` answers each coin's stored power instead.** It is a snapshot of the runtime coin models, before
+situational buff/opposing-action power adders and before applying heads/tails or the coin's operator. It is
+available even at `TIMING.BEFORE_ROLL_COIN`. Its zero-based indexes match `e.coin.index`; use `total`, not Lua's
+`#` operator, to walk it. Both `total` and `powers` are nil when there is no readable action coin list or it has
+more than 128 original slots. A missing index is nil, and repeated flips do not create more indexes.
+
+```lua
+on(TIMING.BEFORE_ROLL_COIN, function(e)
+	if not e.coin or e.coin.total == nil or not e.coin.powers then return end
+	log("total coins", e.coin.total)
+	for index = 0, e.coin.total - 1 do
+		local power = e.coin.powers[index]
+		if power ~= nil then log("coin", index, "stored power", power) end
+	end
+	log("this coin's stored power", e.coin.powers[e.coin.index])
+end)
+```
 
 **A re-flip keeps the coin's number.** Flip coin 1 twice and `e.coin.index` reads `1` twice, not `1` then `3`. It
 is a position in the skill, not a name for one flip, and it starts again at zero for every skill — so it can tell

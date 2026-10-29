@@ -79,7 +79,7 @@ a folder this document happens to list -- filing is a convenience, and the packa
 | Left out | Why |
 |----------|-----|
 | `.limbonia/`, `.vscode/`, `.luarc.json` | the editor pack. Written for the game build on YOUR machine, read by nothing
-| `mod.json.<date>-<time>.bak` | the dated copies taken whenever your mod file is rewritten. Your undo, not their mod
+| `mod.json.<date>-<time>.bak` | one backup of the previous manifest. Each successful backup replaces the older generated backups; do not ship it with the mod
 | `Thumbs.db`, `desktop.ini`, `.DS_Store`, `.git/` and the like | your computer's own leftovers
 | a zip already sitting in the folder | a previous export, not part of this one
 | anything else nothing points at | **read this one.** Either it is no longer needed, or a name in mod.json is spelled differently from the name on disk
@@ -176,6 +176,7 @@ under "The game has no entry for these" once the game is running.
 | desc     | text   | the skill's description. See the two warnings below
 | flavor   | text   | the skill's flavour line
 | icon     | path   | 256x256 — the picture on the skill card. See "where it shows up" below
+| coins    | int    | how many coins the skill throws while the mod is on, 1 to 10. See "Coins added to a skill" under MOTIONS
 
 Any text field is a plain string (every language) or `{ "EN": "...", "KR": "...", "JP": "..." }`. A named language
 always beats the plain form. Every uptie level of the skill is renamed, so it does not change at +2 / +4.
@@ -710,7 +711,7 @@ inside the `assets` entry it was meant for. This is reported by name.
 | Field  |  Type  |  Notes  |
 |--------|--------|---------|
 | name   | text | required. The asset's name in the bundle, exactly
-| type   | text | TimelineAsset (default) / GameObject / Texture2D / Material / AnimationClip / TextAsset
+| type   | text | TimelineAsset (default) / GameObject / Texture2D / Material / AnimationClip / TextAsset / Drawings (a coin made from your own images - see below)
 | motion | text | which motion this animation is for - S1, S2, Idle, Guard... An unknown name is refused
 | index  | int  | WHICH COIN of that motion, from 0. -1 broadcasts one animation to every coin. Default 0
 | loop   | bool | should it repeat. Only means anything on a pose - a skill animation is a one-shot by definition
@@ -735,7 +736,8 @@ order: S1 at index 0, then index 1, and so on. Coin 1 continues from where coin 
 interchangeable. Author them as a sequence and declare one per coin, in order. Supplying fewer than the skill has is
 allowed and the uncovered coins keep the original animation, but the join can visibly jump, which is why the mod list
 reports coverage per skill. How many coins a skill throws is gameplay data, not something an animation set changes:
-supply more than the skill has and the extras are simply never played. `index: -1` is only right for a
+supply more than the skill has and the extras are simply never played. The one exception is a coin ADDED to the
+skill (the Skill Editor's add coin): see "Coins added to a skill" below. `index: -1` is only right for a
 coin-agnostic animation that starts and ends in the same pose; on an ordinary multi-coin skill it makes every coin
 restart the lead-in, which reads as a stutter.
 
@@ -749,6 +751,85 @@ entirely on any coin that declares `totalDuration`, both of which are reported.
 **Anything with no `motion` is loaded but never played by the fight.** That is correct for a prefab, a texture or a
 material. It is also how you declare an animation that only a PICTURE change reaches -- though a `TimelineAsset` with
 no `motion` is reported as unused, so expect that sentence on the card.
+
+## Drawings - a coin made from your own images
+
+```json
+"motions": [ { "appearance": "10101_YiSang_BaseAppearance",
+  "assets": [
+    { "name": "my_s1", "type": "Drawings", "motion": "S1", "index": 0,
+      "totalDuration": 1.2,
+      "phases": [ { "type": "GiveDamage", "start": 0.55 } ],
+      "hitCheckers": [ { "time": 0.9 } ], "endCheck": 1.1 } ] } ]
+```
+
+A `Drawings` entry is a coin you build yourself instead of exporting from Unity, so it needs **no bundle**: a
+`motions` entry whose assets are all `Drawings` can leave `bundle` out. It must declare `totalDuration` and its beats
+(see GAMEPLAY BEATS) - that is what the coin is. Everything that rides on a coin's beats works on it: hits, the
+hand-over, the end, CAMERA, MOVE, `cues`, `speech`, VFX that replay the game's own effects, and `gameEffects`.
+
+**Sprites tab.** In the Animation Timing editor, the Sprites tab on the left lists the mod's own sprite animations: one
+folder under `drawings/` is one animation, its PNGs in number order (`2` before `10`). Import a folder (copied in as
+one animation), several images as one, or single images. Drag one onto the timeline (or Add at playhead) and it goes on
+that coin as a clip in `drawings` - turning the coin into a `Drawings` coin with its own length and beats if it was
+not one. A clip is `{ "name", "time", "fps", "frames": [{ "image", "width", "height" }], "pivotX", "pivotY" }`: it
+starts at `time`, shows one frame every 1/`fps` seconds, then stands on its last frame until the next clip or the end
+of the coin. `pivotX`/`pivotY` are the feet, in pixels from the picture's bottom-left (default: middle of the bottom
+edge); "Find the feet" reads them off the first frame. Dragging the bar's right edge changes the speed.
+
+**The images themselves are not drawn in battle yet.** For now the coin plays at your length with your beats, and the
+character's own animation for that coin is replaced, so the character holds still while it plays. Adding your frames
+to the entry is the next step of this feature. Effects of your own (`vfx` with an `asset`) still need a bundle to come
+out of.
+
+## Coins added to a skill
+
+```json
+"skills": [ { "skill": 1, "coins": 4 } ],
+"motions": [ { "appearance": "10101_YiSang_BaseAppearance",
+  "assets": [ { "name": "s1_coin4", "type": "Drawings", "motion": "S1", "index": 3, "totalDuration": 0.9,
+                "hitCheckers": [ { "time": 0.6 } ], "endCheck": 0.8 } ] } ]
+```
+
+`coins` on a `skills` entry sets how many coins that skill throws while your mod is on - from 1 to 10. It goes on the
+same entry as the skill's name and icon (see SKILLS), and the skill is named the same way: `skill` (counting from 1)
+with the character at the top of the file or on the entry, or `skillId`. In the Animation Timing editor, the **-** and
+**+** at the end of the Coin row do the same thing and write this key for you; they need the game running, because
+the skill behind a motion is looked up in the game's data.
+
+**This changes the fight, not only the picture.** A coin is a hit: more coins is more damage and more On Hit chances,
+fewer is less. Everyone who uses your mod gets your coins.
+
+What happens to the coins:
+- Coins are only ever added to or taken off the END. A skill always keeps at least one.
+- An added coin copies the last coin's numbers - its power, its chance, its colour and whether it adds or subtracts -
+  and carries no On Hit effects.
+- An added coin plays the animation with its own number: the fourth coin plays animation 4. Until you give it one it
+  plays the skill's LAST animation, which is what the game does for any coin past the end of its list.
+- Every uptie level of the skill gets the same number of coins.
+- Switch the mod off and the skill has its own coins again straight away. Change the number and save, and it changes
+  without a restart.
+- Only one mod can decide a skill's coins. If two try, the first (by folder name) is used and the other's card says so.
+- Your own Skill Editor changes to the same skill are kept separately: the editor saves only what you changed, never
+  the mod's coins, and "Reset" on the skill keeps the mod's coins.
+
+**Giving an added coin its animation.** Declare it at its index with `totalDuration` - a `Drawings` coin, or any coin
+with its own beats. In the editor, pick the new coin and drag sprites onto it from the Sprites tab. Declare added
+coins in order (3, then 4): each animation goes on the end of the skill's list, one at a time. Switching the mod off
+takes them out again.
+
+**Copy coin.** "Copy coin →" at the end of the Coin row puts everything on the coin you are looking at onto another
+coin of the same skill. That covers:
+- its hits and length, camera, movement, sounds, speech, effects, picture and form changes, and cut-ins;
+- its sprites, if it is a drawn coin;
+- the game effects placed on it, its Mang tracks and its projectiles;
+- which of its original effects are hidden.
+
+It replaces what the other coin had. The copy is the other coin's own from then on: editing one coin does not change
+the other. An animation from your bundle is not copied - the other coin keeps the one it already plays.
+
+A coin added in the Skill Editor rather than through `coins` works the same way, except that its animation number is
+whatever you set there - set it to the declared `index` + 1.
 
 ## Supplying an animation switches off the character's own camera work and movement for that coin
 
@@ -846,13 +927,36 @@ the TARGET from a motion beat, and it is read as an ordinary Relative move, whic
 |------------|--------|---------|
 | damageRatio | number | how much of the coin's damage this beat delivers, 0..10. Alias ratio. Default 1
 | multiHit    | int  | split it into this many impacts, 1..32. Above 32 is limited and reported
-| multiHitDuration | number | how long to spread them over, 0..10s. Without it they arrive back to back and read as ONE hit
+| multiHitDuration | number | native multi-hit duration, 0..10s. The gap is this divided by `multiHit`; the last impact is one gap before the duration ends. Use `multiHit: 1` for a single impact.
 | afterDelay  | number | a pause after the beat, 0..10s
 | isUpAttack  | bool | launches the target upward
 | isLastAttack | bool | this is the coin's final blow
 | isNonDamageMotion | bool | the beat plays but deals nothing
 | isNonRotateSkinPivot | bool | do not turn the target's pivot
 | sturn       | {}   | the knock -- see below
+
+The timeline hit inspector offers **Single impact**, **Spread impacts over time** (count and first-to-last span),
+and **Hit every interval** (window and interval). **Apply hit pattern** updates one selected event in one undo step.
+For example, five impacts over 0.4 seconds store `multiHit: 5, multiHitDuration: 0.5`, giving impacts at
+0, 0.1, 0.2, 0.3 and 0.4 seconds after the hit marker. Interval mode includes the initial impact and each interval
+within the chosen window, including its endpoint when it lines up. The inspector draws each impact and shows its last frame.
+The game waits one final gap after the last impact; keep the hand-over after that finish time. The inspector reports
+counts above 32, native durations above 10 seconds and a pattern that would overrun hand-over.
+On the timeline, multi-hit events show a gold span with a tick for each impact and a **Last** time label.
+The dashed tail is the final wait; selecting the event also shows its **ready** time. Impacts past hand-over turn red.
+Each impact and the finish can be used as a snap target, and folded groups keep the impact ticks visible.
+**Combine this coin’s hits here** removes the coin’s other hit events, keeps movement and hand-over, and puts all
+the coin’s damage presentation at the selected hit marker. It is undoable. **Advanced impact values** retains
+direct access to the native count/duration and repeated marker controls. These settings distribute damage already
+decided by combat; additional visual impacts do not create extra gameplay damage.
+
+**Split damage automatically** distributes the coin's damage equally across its damaging impacts and keeps the
+shares updated when events, multi-hit counts or repeated markers change. Five impacts in one event plus a single
+impact in another receive event shares `5/6` and `1/6`; the game divides the first share across its five impacts.
+Non-damaging motions receive zero. New sprite coins and newly authored coin timings enable this by default;
+existing manual coins keep their shares until the checkbox is enabled. Disable it to edit shares under **Advanced
+impact values**. The companion stores `autoDamageSplit` on the animation as editor metadata and writes explicit
+`damageRatio` values for the existing DLL to play; changes made outside the editor must supply those ratios themselves.
 
 `sturn` takes `sturnType` (NONE, STURN, KNOCKBACK, AIRBORNE, HOLDING), `sturnDir` (NONE, DIR_ACTOR, DIR_TARGET,
 DIR_TOTARGET, DIR_TOACTOR), `sturnTiming` (NONE, FIRST, LAST, ALL), `forcePower` and `randomPower` (0..500, both
@@ -1041,6 +1145,16 @@ offset move afterwards.
 A bare number in the list is an effect index at its own original time -- that is the other motion format's whole
 syntax for this, so pasting one in works.
 
+In the companion, **Draw order** offers **In front** and **Behind** for both game and imported effects.
+For game effects these use the default and back attachment layers; imported effects use sorting offsets +1 and -1.
+Exact offsets and the skin/masked attachment option remain under **Advanced draw order / attachment layer**.
+The timeline preview uses the selected side as well.
+The canvas labels the selected effect **Behind character** or **In front of character** and composites its
+sample before or after the sprite accordingly. Verified game routing: `BattleUnitView.ApplyLabelEffectLayer`
+(RVA `0xF569A0`) attaches layer 0 to `_viewEffectPivot`, layer 3 to `viewEffectRootBack`, and layer 4 to `skinPivot`.
+Character-owned/borrowed effects handled by the mod's fallback now receive a whole-effect SortingGroup with
+the character's sorting layer and order -1/+1; the original group values are restored when the effect is released.
+
 **Say which effect ONCE.** An entry that names both an `asset` of your own and one of the character's own is refused
 rather than resolved, because those are two different effects and guessing is exactly what this section is arranged
 not to do. An entry that names neither is refused too. Naming both `effect` and `index` is allowed -- the name wins
@@ -1128,6 +1242,8 @@ running for the whole battle.
 | playsOn | text | whose character it plays on: "self" (default, the character the entry belongs to) or "target" (the one being hit). Only with `"playsWhen": "hit"` or `"time"`
 | targetIndex | int | which of the units being hit, from 0. Default 0. Above the number being hit it is clamped to the last one and reported. Must name a character - unlike the `vfx` list, -1 is not accepted here
 | x, y | number | where on the character to put it, in units of the character's own HEIGHT. 1 = one character tall, y up, x their right. 0 (the default) is where the game puts it. Added to `centred` rather than replacing it
+| keys | list | "time" only, and only on your own character (not `"playsOn": "target"`). A path for the effect to follow while it plays: each key is `{ "time": seconds, "x": ..., "y": ... }`, on the same coin clock as `time` and in the same units as `x`/`y`. Between keys it moves in a straight line; before the first and after the last it holds still. Up to 512. You normally never type this - dragging the effect in the animation preview writes it. See below
+| replaces | text | WRITTEN BY THE EDITOR, not by you. On an editable copy of one of the character's own effects, the key of the original it replaces (which is listed in `hiddenEffects`). The game never reads it
 | z | number | depth against the scenery, -20 to 20, default 0. Negative pulls it clear so nothing can cut into it; positive lets the background cut into it on purpose. It does not move the effect - see below
 | colour | text | what colour to play it in - a hex colour, `#ff4444`, `#f44`, or with an alpha as `#ff4444cc`. The `#` is optional. Spelled `color` too. Leave it out for the effect's own colour
 | borrowFrom | text | only for an effect that belongs to ANOTHER character. The character name the effect list prints beside it, such as `SD_Personality/10113_YiSang_DerSchutzeAppearance.prefab`. Leave it out for everything else, including an effect belonging to somebody already in the fight
@@ -1251,6 +1367,50 @@ The numbers are in **character heights**, not pixels and not Unity units - `1` i
 values land in the same place on a sinner and on a boss three times the size. `y` is up, `x` is their right, and
 `0` is wherever the game would have put it, so an entry that sets none behaves exactly as before. About `0.2` to
 `0.5` reaches a hand or a shoulder, `1` is over their head, and past `2` you are well clear of them.
+
+**You can make one follow the character, frame by frame.** In Animation Timing's animation player, under
+**Effects on coin N**:
+
+1. Press **Add an effect here** and pick one of the game's effects. It is placed on the coin on screen, at the
+   playhead, at the character.
+2. Select it in that list. While it is selected, dragging on the drawing moves **the effect** (never a Mang ring),
+   and wherever you let go becomes a **key** at the frame on screen.
+3. Step to another frame and drag it again. Between two keys the effect glides in a straight line, so a key on the
+   start and end of a swing is often enough; add more where the path bends. **Remove key here** and **Clear all
+   keys** undo them.
+
+What you see is what plays: in a fight Limbonia moves the effect along the same keys, on the same coin clock, every
+frame. With **Show effects in preview** on, you drag the effect's real picture; without it you drag a ring marking
+where it is. The keys are saved as `"keys"` on the entry, and `x`/`y` are kept equal to where the path starts, so
+the file still reads sensibly:
+
+```json
+{ "label": "FX_Slash_Arc", "playsWhen": "time", "motion": "S1", "coin": 0, "time": 0.2, "x": 0.1, "y": 0.5,
+  "keys": [ { "time": 0.2, "x": 0.1, "y": 0.5 }, { "time": 0.45, "x": 0.9, "y": 0.3 } ] }
+```
+
+A path only works on your own character - an effect with `"playsOn": "target"` is measured against somebody else
+and keeps its one place.
+
+**The character's own effects can be edited the same way.** Their original effects (the ones listed under
+**Original character effects** in the Effects tab) are part of their animation, so they cannot be moved directly. Select one
+and press **Edit like an added effect**: the original is hidden and an exact copy takes its place - the same
+artwork, switched on at the same moment for the same length. The copy is an ordinary entry in this list, so
+everything above works on it: drag it, key it frame by frame, resize it, change its start and end, hold effect
+frames, run it across coins, colour it or change its speed. **Restore original** (on the copy, or on the original)
+removes the copy and plays the original again.
+
+In the file the copy is a `gameEffects` entry whose `label` is the effect's own object name followed by `#copy`
+(for example `"EyeLight1#copy"`), with `"replaces": "<the original's key>"`, and the original's key is added to
+`hiddenEffects`. The `#copy` ending makes the copy its own instance of the effect, separate from the original: hiding
+the original switches off the original's own object, and without its own instance the copy would be hidden with it.
+The copy is placed right beside the original, at the spot and size the game actually plays the original at (which
+can differ from how the effect is built in its files - the game moves and resizes some effects as they switch on, and
+the preview shows them the same way). `x`/`y` are measured in the character's height and `scale` multiplies that
+size, exactly as for an added effect; `layer` and `centred` are ignored for a copy. `replaces` is only the
+editor's note of which original the copy stands in for; the game never reads it. The button is greyed out for an
+effect whose object could not be identified - load the character (in a fight or from the lobby with the effect
+preview on) so the effect list is read again.
 
 `z` is **depth against the scenery**, and it does not move the effect. The fight is drawn flat, so pushing an
 effect away cannot make it look further off - what it changes is whether the background **cuts into it**:
@@ -2078,3 +2238,103 @@ nothing here assumes a DOWNLOADED script is safe to run.
 which character a handler is about, coins, criticals, SP, status effects, transformations, and the mistakes that
 produce a script which loads cleanly and does nothing -- is in [scripts info.md](scripts%20info.md).
 
+
+
+### Sprite projectiles in the timeline editor
+
+Import a PNG or animation in **Sprites**, then choose it in **Projectiles** and press **Add projectile**.
+The gold projectile bar spans launch to arrival: drag the bar to move launch and its right edge to set travel time.
+Select the bar to edit launch/travel frames, target, artwork size, rotation, arc and launch/impact offsets in the right panel.
+**Arrive at hit frame** aligns visual arrival with the coin's damage marker when launch is earlier than that marker.
+Projectiles never invoke gameplay damage. Keep the normal damage marker for the actual hit.
+
+Artwork uses a centered pivot and defaults to 100 pixels per world unit. Animated sprites loop at the chosen FPS.
+The preview uses a target marker three units to the right; battle playback uses the selected enemy's center.
+`targetIndex: 0` is the first target, higher indexes select another target, and `-1` selects the target-group center.
+Tracking latches the enemy at launch. Interrupted actions, scene changes and destroyed targets stop the projectile.
+Optional impact frames play at arrival. Camera follow pans the rendered camera in its viewing plane after the game's camera update,
+then removes that temporary offset before the next update. It leaves the game's actor focus, zoom and rotation intact,
+and releases after the configured impact hold. Follow response is timed on the projectile's animation clock; zero follows immediately.
+The most recently launched camera-following projectile owns the pan. Logs tagged `[ProjectileCamera]` record launch, midpoint and arrival samples.
+
+The Projectiles tab always shows the enemy reference, so launch/impact offsets use the visible target and its movement.
+Green **START** and red **HIT** handles move each endpoint; their labels are draggable too. Corners resize artwork,
+the rotation and angle grips use a crosshair cursor, and the **ARC** grip uses an up/down resize cursor.
+Under **Impact artwork**, choose a game effect from the same searchable catalog as Effects. It plays at the actual
+projectile arrival position for **Impact duration**, including arrivals on a later coin. Optional sprite impact frames can play alongside it.
+The manifest stores this as `impactEffect: { "label": "Damage1", "borrowFrom": "donorAppearance", "scale": 1 }`;
+omit `borrowFrom` for a character-owned or shared game effect. These are isolated visual copies: scripts, audio and gameplay
+notifications are disabled, and supported particle/animation artwork follows the projectile clock. Unsupported timeline tracks
+are reported as `[ProjectileImpact]` errors rather than executing gameplay events.
+
+The manifest stores these as `projectiles` on a motion pack. Each entry has `name`, `motion`, `coin`, `time`, `duration`
+and `frames` (mod-relative image paths). Optional fields are `fps`, `pixelsPerUnit`, `scale`, `rotation`, `arc`,
+`startX`, `startY`, `endX`, `endY`, `targetIndex`, `tracking`, `orient`, `enabled`, `impactFrames`, `impactDuration`,
+`cameraFollow`, `cameraSmoothing` and `cameraHold`. The first version supports up to 32 declarations per pack,
+256 frames per animation, 64 prepared projectiles globally and 30 seconds of travel. Use the full preview for cross-coin flight.
+
+### Keeping original presentation when replacing sprites
+
+The companion reads the untouched character prefab for original movement and camera events, including before battle.
+Loading a coin automatically seeds supported original shakes, movements, zooms and camera turns into all declared
+coins of the selected motion, including coins without PNG clips. Untouched lanes receive the original events at
+their original times; existing authored lane settings and explicit empty lists take priority. Adding a sprite is
+not required. **Import original events** remains available for manually copying events into sprite coins.
+Save the mod to use them in battle. Each coin records `originalPresentationImported: true`, so deleting an imported
+event keeps it deleted rather than re-importing it next time the coin loads. Undo covers subsequent edits.
+The imported events use the existing `camera.shake`, `camera.zoom`, `camera.rotate` and `move` declarations;
+they can be moved, resized and configured with the normal timeline inspector. Gameplay markers and sprites are kept.
+
+The game must be connected to read source prefabs; a live battle is not required. Unsupported shake/movement
+variants, V2/object/POV camera clips, custom camera curves and absolute camera zooms are named in the import result
+instead of being approximated. This import does not copy built-in sounds, gameplay events or effect clips.
+
+### Timeline autosave
+
+Timeline changes save automatically about 1.2 seconds after editing settles, while connected to the game.
+Typing in a field and active drags postpone the save; leaving the editor flushes committed changes. The header
+shows **Autosave pending**, **Saving…**, **Saved**, or **Save failed**. Ctrl+S and the Save button still save immediately.
+Offline edits stay pending and save when the connection returns. A file changed by another editor is never
+silently overwritten: autosave stops and reports the conflict so it can be resolved. Edits made during a write
+remain pending for the next write. Automatic writes do not reload the drawing/effect preview.
+
+The DLL keeps only one generated manifest backup: the previous file before the latest rewrite. After rebuilding
+the DLL, the next successful backup prunes older generated dated backups (and the legacy `mod.json.bak`), while
+unrelated files and subfolders are untouched. A failed backup copy never prunes the existing backup.
+
+### Original sprite fallback and drawing loading
+
+Adding a custom sprite first imports the coin's original game artwork as an editable fallback clip. It lives in
+the Sprites lane, with `original: true`; custom clips take priority without deleting it. Removing or disabling a
+custom clip reveals that original again. Existing sprite coins can use **Add original sprite** in Sprites to add
+their fallback. The original uses the usual frame keys, timing, feet and visibility controls. Extraction needs
+the bundled game-drawing extractor; import errors are displayed rather than silently replacing the artwork.
+
+The original frames are explicitly imported into the mod's drawings folder as editable PNG assets, with their
+source frame timings and feet aligned on a common canvas. This is an asset import, not a preview disk cache.
+Clip `enabled: false` keeps a clip without rendering it; optional `duration` limits its visible span. When there
+is no active override, native drawing playback restores the game's renderer visibility and original trail source.
+
+The editor shows progress while loading skills and motions. On entering a skill it loads and decodes all coin
+drawings before allowing playback, with coin progress at the bottom left of the preview. Preview reads sharing
+the same coin reuse one request, and cancelled selections cannot replace the newly selected skill's previews.
+
+### Enemy target in the editor preview
+
+Use **Expand preview** to fill the companion window with the drawing and a compact frame scrubber. The view fits
+the character, visible target, effects and projectile route to the available window shape. **Esc** returns to the
+editor; Space plays/pauses and Left/Right step frames. Ctrl+wheel zooms, and dragging empty canvas pans while zoomed.
+The normal preview can also be made taller by dragging its bottom-right resize corner. Projectile START/HIT/ARC
+labels and grips keep a readable screen size as the canvas zoom or window size changes.
+
+Enable **Enemy target** in the preview toolbar to show an embedded backstreet enemy, and use **Gap** to choose
+the starting feet-to-feet distance. The target switches to its damaged drawing at damage beats, including authored
+multi-hits, and at projectile arrivals; scrubbing backward restores the matching pose. It returns to standing
+after a short illustrative recoil. Mirror and shake preview apply to both characters together.
+
+Approach, wide and relative movement beats are sampled across coins with their timing and easing. The camera
+stays with the edited character, so its distance from the enemy changes while attachment coordinates stay stable.
+Projectile paths use that same target and the character's launch position. This is a placement reference on a
+flat battlefield with representative body radii, not a battle simulation: it does not determine damage,
+defensive results, target groups or depth. These preview controls never change the mod or the live game.
+The two enemy poses ship inside the companion and work without extracting game assets at runtime.
